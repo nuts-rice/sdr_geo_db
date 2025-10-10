@@ -11,6 +11,17 @@ pub enum ValidationError {
     EmptyDataset,
 }
 
+#[derive(Debug, Clone, PartialEq )]
+pub enum DatabaseError {
+    ConnectionError(String),
+    QueryError(String),
+    NotFound(String),
+    DuplicateEntry(String),
+
+}
+
+
+
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
