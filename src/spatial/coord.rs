@@ -3,21 +3,20 @@ use diesel::deserialize::{self, FromSql, FromSqlRow};
 use diesel::expression::AsExpression;
 use diesel::pg::Pg;
 use diesel::serialize::{self, Output, ToSql};
-use diesel::sql_types::Record;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::Write;
 
 /// WGS84 geographic coordinate
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
-#[diesel(sql_type = Record<(diesel::sql_types::Float8, diesel::sql_types::Float8)>)]
+#[diesel(sql_type = crate::schema::sql_types::Coordinate)]
 pub struct Coordinate {
     pub latitude: f64,
     pub longitude: f64,
 }
 
 // Implement ToSql for inserting Coordinates
-impl ToSql<Record<(diesel::sql_types::Float8, diesel::sql_types::Float8)>, Pg> for Coordinate {
+impl ToSql<crate::schema::sql_types::Coordinate, Pg> for Coordinate {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
         // Write as PostgreSQL composite type: (latitude, longitude)
         write!(out, "({},{})", self.latitude, self.longitude)?;
@@ -26,7 +25,7 @@ impl ToSql<Record<(diesel::sql_types::Float8, diesel::sql_types::Float8)>, Pg> f
 }
 
 // Implement FromSql for reading Coordinates
-impl FromSql<Record<(diesel::sql_types::Float8, diesel::sql_types::Float8)>, Pg> for Coordinate {
+impl FromSql<crate::schema::sql_types::Coordinate, Pg> for Coordinate {
     fn from_sql(bytes: <Pg as diesel::backend::Backend>::RawValue<'_>) -> deserialize::Result<Self> {
         // Parse PostgreSQL composite type representation
         let bytes_str = <String as FromSql<diesel::sql_types::Text, Pg>>::from_sql(bytes)?;
