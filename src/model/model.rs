@@ -1,8 +1,7 @@
-use diesel::prelude::*;
-use crate::schema::log;
-use crate::spatial::Coordinate;
 use crate::error::ValidationError;
-use chrono::{NaiveDateTime, DateTime, Utc};
+use crate::schema::log;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use diesel::prelude::*;
 
 /// Database representation of an SDR measurement log entry
 #[derive(Debug, Clone, Queryable, Selectable)]
@@ -11,7 +10,8 @@ use chrono::{NaiveDateTime, DateTime, Utc};
 pub struct Log {
     pub id: i32,
     pub frequency: i32,
-    pub location: Coordinate,
+    pub xcoord: f32,
+    pub ycoord: f32,
     pub callsign: String,
     pub bandwidth: i32,
     pub mode: String,
@@ -26,7 +26,8 @@ pub struct Log {
 #[diesel(table_name = log)]
 pub struct NewLog<'a> {
     pub frequency: i32,
-    pub location: Coordinate,
+    pub xcoord: f32,
+    pub ycoord: f32,
     pub callsign: &'a str,
     pub bandwidth: i32,
     pub mode: &'a str,
@@ -35,7 +36,6 @@ pub struct NewLog<'a> {
     pub comment: Option<&'a str>,
     // timestamp will use database default (CURRENT_TIMESTAMP)
 }
-
 
 impl Log {
     /// Get timestamp as DateTime<Utc>
@@ -58,8 +58,8 @@ impl<'a> NewLog<'a> {
     /// Create a new NewLog with validation
     ///
     /// # Arguments
-    /// * `location` - Geographic position (WGS84, must be valid)
     /// * `frequency` - Signal frequency in Hz (must be positive)
+    /// * `location` - Geographic position (WGS84, as DbPoint)
     /// * `callsign` - Station callsign
     /// * `bandwidth` - Signal bandwidth in Hz
     /// * `mode` - Operating mode (e.g., "FM", "AM", "SSB")
@@ -70,8 +70,9 @@ impl<'a> NewLog<'a> {
     /// # Errors
     /// Returns `ValidationError::InvalidFrequency` if frequency is not positive
     pub fn new(
-        location: Coordinate,
         frequency: i32,
+        xcoord: f32,
+        ycoord: f32,
         callsign: &'a str,
         bandwidth: i32,
         mode: &'a str,
@@ -85,8 +86,9 @@ impl<'a> NewLog<'a> {
         }
 
         Ok(NewLog {
-            location,
             frequency,
+            xcoord,
+            ycoord,
             callsign,
             bandwidth,
             mode,
@@ -98,12 +100,13 @@ impl<'a> NewLog<'a> {
 }
 
 /// Render a log entry to the console
-pub fn render(log: &Log, coord: Coordinate) {
+pub fn render(log: &Log) {
     println!(
-        "{} MHz | {} | {} | {} | {} | {}",
+        "{} MHz | ({}, {}) | {:?} | {} | {} | {}",
         log.frequency / 1_000_000,
         log.callsign.to_uppercase(),
-        coord,
+        log.xcoord,
+        log.ycoord,
         log.comment.as_deref().unwrap_or(""),
         log.mode,
         log.timestamp,

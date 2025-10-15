@@ -1,9 +1,10 @@
-use sdr_db::{create_log, establish_connection, spatial::Coordinate, error::ValidationError};
 use clap::Parser;
 use dotenvy::dotenv;
+use sdr_db::{
+    create_log, establish_connection,
+};
 use std::env;
-use tracing::{info, error};
-use tracing_subscriber;
+use tracing::{error, info};
 
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
@@ -15,11 +16,11 @@ struct Args {
 
     /// Latitude in decimal degrees [-90, 90]
     #[arg(long)]
-    latitude: Option<f64>,
+    latitude: Option<f32>,
 
     /// Longitude in decimal degrees [-180, 180]
     #[arg(long)]
-    longitude: Option<f64>,
+    longitude: Option<f32>,
 
     /// Frequency in Hz (must be positive)
     #[arg(long)]
@@ -61,7 +62,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // Get database URL from args or environment
-    let database_url = args.database_url
+    let database_url = args
+        .database_url
         .or_else(|| env::var("DATABASE_URL").ok())
         .ok_or("DATABASE_URL must be set")?;
 
@@ -89,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if input.trim() == "q" {
                 break;
             }
-            input.trim().parse::<f64>()?
+            input.trim().parse::<f32>()?
         };
 
         let longitude = if let Some(lon) = args.longitude {
@@ -101,24 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if input.trim() == "q" {
                 break;
             }
-            input.trim().parse::<f64>()?
-        };
-
-        // Validate coordinate
-        let location = match Coordinate::new(latitude, longitude) {
-            Ok(coord) => coord,
-            Err(ValidationError::InvalidLatitude(lat)) => {
-                error!("Invalid latitude: {}. Must be between -90 and 90", lat);
-                continue;
-            }
-            Err(ValidationError::InvalidLongitude(lon)) => {
-                error!("Invalid longitude: {}. Must be between -180 and 180", lon);
-                continue;
-            }
-            Err(e) => {
-                error!("Validation error: {}", e);
-                continue;
-            }
+            input.trim().parse::<f32>()?
         };
 
         // Get frequency
@@ -156,10 +141,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Write to database
         info!("Writing log entry to database...");
+        tracing::debug!(
+            "Log details: freq={} Hz, coord = ({}, {}), callsign={}, ",
+            frequency,
+            latitude,
+            longitude,
+            callsign
+        );
         match create_log(
             &mut conn,
             frequency,
-            location,
+            latitude,
+            longitude,
             bandwidth,
             callsign.clone(),
             mode.clone(),
@@ -170,7 +163,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(log) => {
                 info!("✓ Log entry created successfully!");
                 println!("  ID: {}", log.id);
-                println!("  Location: ({}, {})", location.latitude, location.longitude);
+                println!("  Location: ({}, {})", latitude, longitude);
                 println!("  Frequency: {} Hz", frequency);
                 println!("  Callsign: {}", callsign);
                 println!("  Mode: {}", mode);
