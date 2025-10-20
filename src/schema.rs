@@ -3,7 +3,7 @@
 diesel::table! {
     logs (id) {
         id -> Int4,
-        frequency -> Int4,
+        frequency -> Float4,
         xcoord -> Float4,
         ycoord -> Float4,
         #[max_length = 50]

@@ -3,6 +3,7 @@ use diesel::prelude::*;
 pub mod error;
 pub mod model;
 pub mod schema;
+pub mod source;
 pub mod spatial;
 
 pub use error::{DatabaseError, ValidationError};
@@ -10,7 +11,7 @@ pub use model::{Log, NewLog};
 
 pub fn create_log(
     conn: &mut PgConnection,
-    frequency: i32,
+    frequency: f32,
     xcoord: f32,
     ycoord: f32,
     callsign: String,

@@ -2,13 +2,21 @@ use crate::error::ValidationError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 
+pub enum SignalMode {
+    FM,
+    AM,
+    USB,
+    LSB,
+    CW,
+}
+
 /// Database representation of an SDR measurement log entry
 #[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = crate::schema::logs)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Log {
     pub id: i32,
-    pub frequency: i32,
+    pub frequency: f32,
     pub xcoord: f32,
     pub ycoord: f32,
     pub callsign: Option<String>,
@@ -21,7 +29,7 @@ pub struct Log {
 #[derive(Insertable)]
 #[diesel(table_name = crate::schema::logs)]
 pub struct NewLog<'a> {
-    pub frequency: i32,
+    pub frequency: f32,
     pub xcoord: f32,
     pub ycoord: f32,
     pub callsign: &'a str,
@@ -58,7 +66,7 @@ impl<'a> NewLog<'a> {
     /// # Errors
     /// Returns `ValidationError::InvalidFrequency` if frequency is not positive
     pub fn new(
-        frequency: i32,
+        frequency: f32,
         xcoord: f32,
         ycoord: f32,
         callsign: &'a str,
@@ -66,8 +74,14 @@ impl<'a> NewLog<'a> {
         comment: Option<&'a str>,
     ) -> Result<Self, ValidationError> {
         // Validate frequency must be positive
-        if frequency <= 0 {
+        if frequency <= 0.0 {
             return Err(ValidationError::InvalidFrequency(frequency as f64));
+        }
+        if xcoord < -180.0 || xcoord > 180. {
+            return Err(ValidationError::InvalidLatitude(xcoord as f64));
+        }
+        if ycoord < -90. || ycoord > 90. {
+            return Err(ValidationError::InvalidLongitude(ycoord as f64));
         }
 
         Ok(NewLog {
@@ -85,7 +99,7 @@ impl<'a> NewLog<'a> {
 pub fn render(log: &Log) {
     println!(
         "{} MHz | ({}, {}) | {:?} | {} | {} | {}",
-        log.frequency / 1_000_000,
+        log.frequency / 1_000_000.,
         log.callsign.as_deref().unwrap_or("").to_uppercase(),
         log.xcoord,
         log.ycoord,
@@ -93,4 +107,16 @@ pub fn render(log: &Log) {
         log.mode,
         log.timestamp,
     );
+}
+
+// WIP: parsing mode from input
+pub fn parse_mode(mode: &str) -> &str {
+    match mode.to_lowercase().as_str() {
+        "fm" => "FM",
+        "am" => "AM",
+        "usb" => "USB",
+        "lsb" => "LSB",
+        "cw" => "CW",
+        _ => "UNKNOWN",
+    }
 }

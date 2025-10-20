@@ -14,6 +14,8 @@ chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15.7"
 clap = { version = "4.5.48", features = ["derive", "env"] }
 geo = "0.31.0"
+soapysdr = "0.4.2"
+tokio = { version = "1.48.0", features = ["sync"] }
 
 [dev-dependencies]
 proptest = "1.4"

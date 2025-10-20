@@ -1,5 +1,6 @@
 use clap::Parser;
 use dotenvy::dotenv;
+use sdr_db::model::model::parse_mode;
 use sdr_db::{create_log, establish_connection};
 use std::env;
 use tracing::{error, info};
@@ -22,14 +23,14 @@ struct Args {
 
     /// Frequency in Hz (must be positive)
     #[arg(long)]
-    frequency: Option<i32>,
+    frequency: Option<f32>,
 
     /// Callsign or station identifier
     #[arg(long)]
     callsign: Option<String>,
 
     /// Mode (e.g., FM, AM, SSB)
-    #[arg(long, default_value = "UNKNOWN")]
+    #[arg(long)]
     mode: String,
 
     /// Optional comment
@@ -104,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if input.trim() == "q" {
                 break;
             }
-            input.trim().parse::<i32>()?
+            input.trim().parse::<f32>()?
         };
 
         // Get callsign
@@ -131,8 +132,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             input.trim().to_string()
         };
 
-        // Use provided values or defaults
-        let mode = args.mode.clone();
+        let mode = if !args.mode.is_empty() {
+            args.mode.clone()
+        } else {
+            println!("Enter mode (AM, FM, USB, LSB, CW) ");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            if input.trim() == "q" {
+                break;
+            }
+            parse_mode(&input.trim().to_string()).to_string()
+        };
 
         // Write to database
         info!("Writing log entry to database...");
