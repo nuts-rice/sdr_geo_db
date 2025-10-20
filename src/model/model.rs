@@ -1,38 +1,31 @@
 use crate::error::ValidationError;
-use crate::schema::log;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 
 /// Database representation of an SDR measurement log entry
 #[derive(Debug, Clone, Queryable, Selectable)]
-#[diesel(table_name = crate::schema::log)]
+#[diesel(table_name = crate::schema::logs)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Log {
     pub id: i32,
     pub frequency: i32,
     pub xcoord: f32,
     pub ycoord: f32,
-    pub callsign: String,
-    pub bandwidth: i32,
+    pub callsign: Option<String>,
     pub mode: String,
-    pub power: Option<f64>,
-    pub snr: Option<f64>,
     pub comment: Option<String>,
     pub timestamp: NaiveDateTime,
 }
 
 /// New log entry for insertion into database
 #[derive(Insertable)]
-#[diesel(table_name = log)]
+#[diesel(table_name = crate::schema::logs)]
 pub struct NewLog<'a> {
     pub frequency: i32,
     pub xcoord: f32,
     pub ycoord: f32,
     pub callsign: &'a str,
-    pub bandwidth: i32,
     pub mode: &'a str,
-    pub power: Option<f64>,
-    pub snr: Option<f64>,
     pub comment: Option<&'a str>,
     // timestamp will use database default (CURRENT_TIMESTAMP)
 }
@@ -46,11 +39,6 @@ impl Log {
     /// Get frequency in Hz (converts from MHz stored in DB)
     pub fn frequency_hz(&self) -> f64 {
         self.frequency as f64
-    }
-
-    /// Get bandwidth in Hz
-    pub fn bandwidth_hz(&self) -> f64 {
-        self.bandwidth as f64
     }
 }
 
@@ -74,10 +62,7 @@ impl<'a> NewLog<'a> {
         xcoord: f32,
         ycoord: f32,
         callsign: &'a str,
-        bandwidth: i32,
         mode: &'a str,
-        power: Option<f64>,
-        snr: Option<f64>,
         comment: Option<&'a str>,
     ) -> Result<Self, ValidationError> {
         // Validate frequency must be positive
@@ -90,10 +75,7 @@ impl<'a> NewLog<'a> {
             xcoord,
             ycoord,
             callsign,
-            bandwidth,
             mode,
-            power,
-            snr,
             comment,
         })
     }
@@ -104,7 +86,7 @@ pub fn render(log: &Log) {
     println!(
         "{} MHz | ({}, {}) | {:?} | {} | {} | {}",
         log.frequency / 1_000_000,
-        log.callsign.to_uppercase(),
+        log.callsign.as_deref().unwrap_or("").to_uppercase(),
         log.xcoord,
         log.ycoord,
         log.comment.as_deref().unwrap_or(""),

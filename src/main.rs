@@ -1,8 +1,6 @@
 use clap::Parser;
 use dotenvy::dotenv;
-use sdr_db::{
-    create_log, establish_connection,
-};
+use sdr_db::{create_log, establish_connection};
 use std::env;
 use tracing::{error, info};
 
@@ -26,10 +24,6 @@ struct Args {
     #[arg(long)]
     frequency: Option<i32>,
 
-    /// Bandwidth in Hz
-    #[arg(long, default_value_t = 20_000_000)]
-    bandwidth: i32,
-
     /// Callsign or station identifier
     #[arg(long)]
     callsign: Option<String>,
@@ -37,14 +31,6 @@ struct Args {
     /// Mode (e.g., FM, AM, SSB)
     #[arg(long, default_value = "UNKNOWN")]
     mode: String,
-
-    /// Power in dBm (optional)
-    #[arg(long)]
-    power: Option<f64>,
-
-    /// Signal-to-Noise Ratio in dB (optional)
-    #[arg(long)]
-    snr: Option<f64>,
 
     /// Optional comment
     #[arg(long)]
@@ -94,6 +80,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             input.trim().parse::<f32>()?
         };
 
+        tracing::debug!("Latitude entered: {}", latitude);
+
         let longitude = if let Some(lon) = args.longitude {
             lon
         } else {
@@ -131,13 +119,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             input.trim().to_string()
         };
+        let comment = if let Some(ref c) = args.comment {
+            c.clone()
+        } else {
+            println!("Enter comment (optional): ");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            if input.trim() == "q" {
+                break;
+            }
+            input.trim().to_string()
+        };
 
         // Use provided values or defaults
-        let bandwidth = args.bandwidth;
         let mode = args.mode.clone();
-        let power = args.power;
-        let snr = args.snr;
-        let comment = args.comment.clone();
 
         // Write to database
         info!("Writing log entry to database...");
@@ -153,12 +148,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             frequency,
             latitude,
             longitude,
-            bandwidth,
             callsign.clone(),
             mode.clone(),
-            power,
-            snr,
-            comment.clone(),
+            Some(comment.clone()),
         ) {
             Ok(log) => {
                 info!("✓ Log entry created successfully!");
@@ -167,12 +159,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  Frequency: {} Hz", frequency);
                 println!("  Callsign: {}", callsign);
                 println!("  Mode: {}", mode);
-                if let Some(p) = power {
-                    println!("  Power: {} dBm", p);
-                }
-                if let Some(s) = snr {
-                    println!("  SNR: {} dB", s);
-                }
                 println!("  Timestamp: {}", log.timestamp);
             }
             Err(e) => {

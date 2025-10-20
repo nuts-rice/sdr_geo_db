@@ -13,29 +13,22 @@ pub fn create_log(
     frequency: i32,
     xcoord: f32,
     ycoord: f32,
-    bandwidth: i32,
     callsign: String,
     mode: String,
-    power: Option<f64>,
-    snr: Option<f64>,
     comment: Option<String>,
 ) -> Result<Log, diesel::result::Error> {
-    use crate::schema::log;
-    
+    use crate::schema::logs;
 
     let new_log = NewLog {
         frequency,
         xcoord,
         ycoord,
         callsign: &callsign,
-        bandwidth,
         mode: &mode,
-        power,
-        snr,
         comment: comment.as_deref(),
     };
 
-    diesel::insert_into(log::table)
+    diesel::insert_into(logs::table)
         .values(&new_log)
         .returning(Log::as_select())
         .get_result(conn)
