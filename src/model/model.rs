@@ -23,6 +23,7 @@ pub struct Log {
     pub mode: String,
     pub comment: Option<String>,
     pub timestamp: NaiveDateTime,
+    pub recording_duration: f32,
 }
 
 /// New log entry for insertion into database
@@ -35,6 +36,7 @@ pub struct NewLog<'a> {
     pub callsign: &'a str,
     pub mode: &'a str,
     pub comment: Option<&'a str>,
+    pub recording_duration: f32,
     // timestamp will use database default (CURRENT_TIMESTAMP)
 }
 
@@ -72,6 +74,7 @@ impl<'a> NewLog<'a> {
         callsign: &'a str,
         mode: &'a str,
         comment: Option<&'a str>,
+        recording_duration: f32,
     ) -> Result<Self, ValidationError> {
         // Validate frequency must be positive
         if frequency <= 0.0 {
@@ -83,6 +86,9 @@ impl<'a> NewLog<'a> {
         if ycoord < -90. || ycoord > 90. {
             return Err(ValidationError::InvalidLongitude(ycoord as f64));
         }
+        if recording_duration < 0. {
+            return Err(ValidationError::InvalidRecordingDuration(recording_duration));
+        }
 
         Ok(NewLog {
             frequency,
@@ -91,6 +97,7 @@ impl<'a> NewLog<'a> {
             callsign,
             mode,
             comment,
+            recording_duration,
         })
     }
 }
@@ -98,7 +105,7 @@ impl<'a> NewLog<'a> {
 /// Render a log entry to the console
 pub fn render(log: &Log) {
     println!(
-        "{} MHz | ({}, {}) | {:?} | {} | {} | {}",
+        "{} MHz | Callsign: {} | Coordinate: ({}, {}) | Comment: {:?} | Mode: {} | Recorded at: {} | Duration: {:.2} sec",
         log.frequency / 1_000_000.,
         log.callsign.as_deref().unwrap_or("").to_uppercase(),
         log.xcoord,
@@ -106,6 +113,8 @@ pub fn render(log: &Log) {
         log.comment.as_deref().unwrap_or(""),
         log.mode,
         log.timestamp,
+        log.recording_duration,
+        
     );
 }
 

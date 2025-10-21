@@ -17,6 +17,7 @@ pub fn create_log(
     callsign: String,
     mode: String,
     comment: Option<String>,
+    recording_duration: f32,
 ) -> Result<Log, diesel::result::Error> {
     use crate::schema::logs;
 
@@ -27,6 +28,7 @@ pub fn create_log(
         callsign: &callsign,
         mode: &mode,
         comment: comment.as_deref(),
+        recording_duration,
     };
 
     diesel::insert_into(logs::table)

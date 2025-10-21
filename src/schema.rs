@@ -13,5 +13,6 @@ diesel::table! {
         #[max_length = 20]
         mode -> Varchar,
         timestamp -> Timestamp,
+        recording_duration -> Float4,
     }
 }

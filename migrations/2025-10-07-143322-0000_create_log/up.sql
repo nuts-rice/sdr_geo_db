@@ -7,6 +7,7 @@ CREATE TABLE logs (
     callsign VARCHAR(50) , 
     comment VARCHAR(50) ,
     mode VARCHAR(20) NOT NULL,
-    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    recording_duration FLOAT(8) NOT NULL
 );
 

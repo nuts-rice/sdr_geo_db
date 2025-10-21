@@ -1,6 +1,6 @@
 use clap::Parser;
 use dotenvy::dotenv;
-use sdr_db::model::model::parse_mode;
+use sdr_db::model::model::{render, parse_mode};
 use sdr_db::{create_log, establish_connection};
 use std::env;
 use tracing::{error, info};
@@ -36,6 +36,9 @@ struct Args {
     /// Optional comment
     #[arg(long)]
     comment: Option<String>,
+
+    #[arg(long)]
+    recording_duration: Option<f32>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -143,16 +146,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             parse_mode(&input.trim().to_string()).to_string()
         };
+        let recording_duration = if let Some(duration) = args.recording_duration {
+            duration
+        } else {
+            println!("Enter recording duration (in seconds):  ");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            if input.trim() == "q" {
+                break;
+            }
+            input.trim().parse::<f32>()?
+
+        };
 
         // Write to database
         info!("Writing log entry to database...");
-        tracing::debug!(
-            "Log details: freq={} Hz, coord = ({}, {}), callsign={}, ",
-            frequency,
-            latitude,
-            longitude,
-            callsign
-        );
         match create_log(
             &mut conn,
             frequency,
@@ -161,15 +169,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             callsign.clone(),
             mode.clone(),
             Some(comment.clone()),
+            recording_duration,
+
         ) {
             Ok(log) => {
                 info!("✓ Log entry created successfully!");
-                println!("  ID: {}", log.id);
-                println!("  Location: ({}, {})", latitude, longitude);
-                println!("  Frequency: {} Hz", frequency);
-                println!("  Callsign: {}", callsign);
-                println!("  Mode: {}", mode);
-                println!("  Timestamp: {}", log.timestamp);
+                render(&log);
             }
             Err(e) => {
                 error!("Failed to create log entry: {}", e);
