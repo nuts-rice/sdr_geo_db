@@ -1,3 +1,4 @@
+use ratatui::buffer::Buffer;
 use sdr_db::model::model::{parse_mode, render};
 use sdr_db::{create_log, establish_connection};
 
@@ -8,12 +9,12 @@ use tracing::{error, info};
 
 use color_eyre::Result;
 use ratatui::{
-    DefaultTerminal, Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    DefaultTerminal,
     layout::{Constraint, Layout, Rect},
     style::Stylize,
-    widgets::{Block, Paragraph},
+    widgets::{Block, Widget},
 };
+use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
 
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
@@ -51,52 +52,84 @@ struct Args {
     recording_duration: Option<f32>,
 }
 
-//TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
-fn run_tui(mut terminal: DefaultTerminal) -> Result<()> {
-    loop {
-        terminal.draw(draw)?;
-        if let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                break Ok(());
-            }
+#[derive(Default)]
+struct App {
+    state: AppState,
+}
+
+#[derive(Default, Clone, Eq, PartialEq)]
+enum AppState {
+    #[default]
+    Running,
+    Quitting,
+}
+
+#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter)]
+enum SelectedTab {
+    #[default]
+    #[strum(to_string = "Create Log")]
+    CreateLog,
+    #[strum(to_string = "View Logs")]
+    ViewLogs,
+    #[strum(to_string = "Spectrum Viewer")]
+    SpectrumViewer,
+}
+
+impl App {
+    //TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
+    fn run(mut self, terminal: DefaultTerminal) -> Result<()> {
+        while self.state == AppState::Running {
+            //terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
+            self.handle_events()?;
+        }
+        Ok(())
+    }
+
+    fn render_block(title: &str) -> Block {
+        Block::bordered()
+            .gray()
+            .title(title.bold().into_centered_line())
+    }
+
+    fn calculate_layout(area: Rect) -> (Rect, [Rect; 1]) {
+        let main_layout = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]);
+        let block_layout = Layout::vertical([Constraint::Max(4); 1]);
+        let [title_area, main_area] = main_layout.areas(area);
+        let blocks = block_layout.areas(main_area);
+        (title_area, blocks)
+    }
+
+    fn handle_events(&mut self) -> std::io::Result<()> {
+        todo!()
+    }
+
+    fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
+        todo!()
     }
 }
-
-fn handle_events() -> std::io::Result<()> {
-    todo!()
+fn render_title(buf: &mut Buffer, area: Rect) {
+    "SDR DB".bold().render(area, buf);
 }
 
-fn draw(frame: &mut Frame) {
-    let (title_area, layout) = calculate_layout(frame.area());
-    render_title(frame, title_area);
-    let block = render_block("Create Log Entry");
-}
+impl Widget for App {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        use Constraint::{Length, Min};
+        let vertical = Layout::vertical([Length(1), Min(0), Length(1)]);
+        let [header_area, inner_area, footer_area] = vertical.areas(area);
 
-fn render_title(frame: &mut Frame, area: Rect) {
-    frame.render_widget(
-        Paragraph::new("SDR DB. Press q to quit")
-            .dark_gray()
-            .alignment(ratatui::layout::Alignment::Center),
-        area,
-    );
-}
+        let horizontal = Layout::horizontal([Min(0), Length(20)]);
+        let [tabs_area, title_area] = horizontal.areas(header_area);
 
-fn render_block(title: &str) -> Block {
-    Block::bordered()
-        .gray()
-        .title(title.bold().into_centered_line())
-}
-
-fn calculate_layout(area: Rect) -> (Rect, [Rect; 1]) {
-    let main_layout = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]);
-    let block_layout = Layout::vertical([Constraint::Max(4); 1]);
-    let [title_area, main_area] = main_layout.areas(area);
-    let blocks = block_layout.areas(main_area);
-    (title_area, blocks)
+        render_title(buf, title_area);
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     color_eyre::install()?;
+    //TODO: Implement TUI with App, AppState, Tabs etc
+    //let terminal = ratatui::init();
+    //let _ = run_tui(terminal);
+
     // Initialize tracing subscriber for logging
     tracing_subscriber::fmt::init();
 
