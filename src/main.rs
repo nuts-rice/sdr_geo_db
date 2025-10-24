@@ -1,5 +1,7 @@
 use ratatui::buffer::Buffer;
+use ratatui::style::Color;
 use sdr_db::model::model::{parse_mode, render};
+use sdr_db::tabs::SelectedTab;
 use sdr_db::{create_log, establish_connection};
 
 use clap::Parser;
@@ -10,11 +12,13 @@ use tracing::{error, info};
 use color_eyre::Result;
 use ratatui::{
     DefaultTerminal,
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     style::Stylize,
-    widgets::{Block, Widget},
+    text::Line,
+    widgets::{Block, Tabs, Widget},
 };
-use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
+use strum::IntoEnumIterator;
 
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
@@ -55,6 +59,7 @@ struct Args {
 #[derive(Default)]
 struct App {
     state: AppState,
+    selected_tab: SelectedTab,
 }
 
 #[derive(Default, Clone, Eq, PartialEq)]
@@ -64,25 +69,26 @@ enum AppState {
     Quitting,
 }
 
-#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter)]
-enum SelectedTab {
-    #[default]
-    #[strum(to_string = "Create Log")]
-    CreateLog,
-    #[strum(to_string = "View Logs")]
-    ViewLogs,
-    #[strum(to_string = "Spectrum Viewer")]
-    SpectrumViewer,
-}
-
 impl App {
     //TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
-    fn run(mut self, terminal: DefaultTerminal) -> Result<()> {
+    fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         while self.state == AppState::Running {
-            //terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
+            terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
             self.handle_events()?;
         }
         Ok(())
+    }
+
+    fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
+        let titles = SelectedTab::iter().map(SelectedTab::title);
+        let highlight_style = (Color::default(), self.selected_tab.palette());
+        let selected_tab_idx = self.selected_tab as usize;
+        Tabs::new(titles)
+            .highlight_style(highlight_style)
+            .select(selected_tab_idx)
+            .padding("", "")
+            .divider(" ")
+            .render(area, buf);
     }
 
     fn render_block(title: &str) -> Block {
@@ -100,18 +106,39 @@ impl App {
     }
 
     fn handle_events(&mut self) -> std::io::Result<()> {
-        todo!()
+        if let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press {
+                match key.code {
+                    KeyCode::Char('l') | KeyCode::Right => self.next_tab(),
+                    KeyCode::Char('h') | KeyCode::Left => self.previous_tab(),
+                    KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+                    _ => {}
+                }
+            }
+        Ok(())
+    }
+    pub fn next_tab(&mut self) {
+        self.selected_tab = self.selected_tab.next();
     }
 
-    fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
-        todo!()
+    pub fn previous_tab(&mut self) {
+        self.selected_tab = self.selected_tab.previous();
+    }
+
+    pub fn quit(&mut self) {
+        self.state = AppState::Quitting;
     }
 }
 fn render_title(buf: &mut Buffer, area: Rect) {
     "SDR DB".bold().render(area, buf);
 }
+fn render_footer(area: Rect, buf: &mut Buffer) {
+    Line::raw("◄ ► to change tab | Press q to quit")
+        .centered()
+        .render(area, buf);
+}
 
-impl Widget for App {
+impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         use Constraint::{Length, Min};
         let vertical = Layout::vertical([Length(1), Min(0), Length(1)]);
@@ -121,6 +148,9 @@ impl Widget for App {
         let [tabs_area, title_area] = horizontal.areas(header_area);
 
         render_title(buf, title_area);
+        self.render_tabs(tabs_area, buf);
+        self.selected_tab.render(inner_area, buf);
+        render_footer(footer_area, buf);
     }
 }
 

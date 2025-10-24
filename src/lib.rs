@@ -5,6 +5,7 @@ pub mod model;
 pub mod schema;
 pub mod source;
 pub mod spatial;
+pub mod tabs;
 
 pub use error::{DatabaseError, ValidationError};
 pub use model::{Log, NewLog};
