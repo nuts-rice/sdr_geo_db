@@ -1,9 +1,19 @@
+use sdr_db::model::model::{parse_mode, render};
+use sdr_db::{create_log, establish_connection};
+
 use clap::Parser;
 use dotenvy::dotenv;
-use sdr_db::model::model::{render, parse_mode};
-use sdr_db::{create_log, establish_connection};
 use std::env;
 use tracing::{error, info};
+
+use color_eyre::Result;
+use ratatui::{
+    DefaultTerminal, Frame,
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    layout::{Constraint, Layout, Rect},
+    style::Stylize,
+    widgets::{Block, Paragraph},
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
@@ -41,7 +51,52 @@ struct Args {
     recording_duration: Option<f32>,
 }
 
+//TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
+fn run_tui(mut terminal: DefaultTerminal) -> Result<()> {
+    loop {
+        terminal.draw(draw)?;
+        if let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
+                break Ok(());
+            }
+    }
+}
+
+fn handle_events() -> std::io::Result<()> {
+    todo!()
+}
+
+fn draw(frame: &mut Frame) {
+    let (title_area, layout) = calculate_layout(frame.area());
+    render_title(frame, title_area);
+    let block = render_block("Create Log Entry");
+}
+
+fn render_title(frame: &mut Frame, area: Rect) {
+    frame.render_widget(
+        Paragraph::new("SDR DB. Press q to quit")
+            .dark_gray()
+            .alignment(ratatui::layout::Alignment::Center),
+        area,
+    );
+}
+
+fn render_block(title: &str) -> Block {
+    Block::bordered()
+        .gray()
+        .title(title.bold().into_centered_line())
+}
+
+fn calculate_layout(area: Rect) -> (Rect, [Rect; 1]) {
+    let main_layout = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]);
+    let block_layout = Layout::vertical([Constraint::Max(4); 1]);
+    let [title_area, main_area] = main_layout.areas(area);
+    let blocks = block_layout.areas(main_area);
+    (title_area, blocks)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    color_eyre::install()?;
     // Initialize tracing subscriber for logging
     tracing_subscriber::fmt::init();
 
@@ -144,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if input.trim() == "q" {
                 break;
             }
-            parse_mode(&input.trim().to_string()).to_string()
+            parse_mode(input.trim()).to_string()
         };
         let recording_duration = if let Some(duration) = args.recording_duration {
             duration
@@ -156,7 +211,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 break;
             }
             input.trim().parse::<f32>()?
-
         };
 
         // Write to database
@@ -170,7 +224,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             mode.clone(),
             Some(comment.clone()),
             recording_duration,
-
         ) {
             Ok(log) => {
                 info!("✓ Log entry created successfully!");

@@ -80,14 +80,16 @@ impl<'a> NewLog<'a> {
         if frequency <= 0.0 {
             return Err(ValidationError::InvalidFrequency(frequency as f64));
         }
-        if xcoord < -180.0 || xcoord > 180. {
+        if !(-180.0..=180.).contains(&xcoord) {
             return Err(ValidationError::InvalidLatitude(xcoord as f64));
         }
-        if ycoord < -90. || ycoord > 90. {
+        if !(-90. ..=90.).contains(&ycoord) {
             return Err(ValidationError::InvalidLongitude(ycoord as f64));
         }
         if recording_duration < 0. {
-            return Err(ValidationError::InvalidRecordingDuration(recording_duration));
+            return Err(ValidationError::InvalidRecordingDuration(
+                recording_duration,
+            ));
         }
 
         Ok(NewLog {
@@ -114,7 +116,6 @@ pub fn render(log: &Log) {
         log.mode,
         log.timestamp,
         log.recording_duration,
-        
     );
 }
 

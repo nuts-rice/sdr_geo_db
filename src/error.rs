@@ -8,7 +8,7 @@ pub enum ValidationError {
     InvalidFrequency(f64),
     InvalidTimestamp(String),
     InvalidBoundingBox(String),
-    InvalidRecordingDuration(f32), 
+    InvalidRecordingDuration(f32),
     EmptyDataset,
 }
 
@@ -46,7 +46,11 @@ impl fmt::Display for ValidationError {
                 write!(f, "Dataset is empty")
             }
             ValidationError::InvalidRecordingDuration(duration) => {
-                write!(f, "Invalid recording duration: {} (must be positive)", duration)
+                write!(
+                    f,
+                    "Invalid recording duration: {} (must be positive)",
+                    duration
+                )
             }
         }
     }
