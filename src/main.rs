@@ -1,5 +1,6 @@
 use ratatui::buffer::Buffer;
-use ratatui::style::Color;
+use ratatui::style::{Color, Style};
+use ratatui::widgets::Borders;
 use sdr_db::model::model::{parse_mode, render};
 use sdr_db::tabs::SelectedTab;
 use sdr_db::{create_log, establish_connection};
@@ -15,10 +16,16 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     style::Stylize,
+    symbols,
     text::Line,
     widgets::{Block, Tabs, Widget},
 };
 use strum::IntoEnumIterator;
+
+const LOG_ENTRY_HEADER_STYLE: ratatui::style::Style = Style::new()
+    .fg(Color::Rgb(14, 15, 23))
+    .bg(Color::Rgb(54, 68, 96));
+const NORMAL_ROW_BG: Color = Color::Rgb(14, 15, 23);
 
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
@@ -54,6 +61,16 @@ struct Args {
 
     #[arg(long)]
     recording_duration: Option<f32>,
+}
+
+enum LogEntryFocus {
+    Frequency,
+    Latitude,
+    Longitude,
+    Callsign,
+    Mode,
+    Comment,
+    RecordingDuration,
 }
 
 #[derive(Default)]
@@ -107,16 +124,19 @@ impl App {
 
     fn handle_events(&mut self) -> std::io::Result<()> {
         if let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press {
-                match key.code {
-                    KeyCode::Char('l') | KeyCode::Right => self.next_tab(),
-                    KeyCode::Char('h') | KeyCode::Left => self.previous_tab(),
-                    KeyCode::Char('q') | KeyCode::Esc => self.quit(),
-                    _ => {}
-                }
+            && key.kind == KeyEventKind::Press
+        {
+            match key.code {
+                KeyCode::Char('l') | KeyCode::Right => self.next_tab(),
+                KeyCode::Char('h') | KeyCode::Left => self.previous_tab(),
+                KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+                _ => {}
             }
+        }
         Ok(())
     }
+
+    fn handle_create_log_entry(&mut self) {}
     pub fn next_tab(&mut self) {
         self.selected_tab = self.selected_tab.next();
     }
@@ -136,6 +156,24 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
     Line::raw("◄ ► to change tab | Press q to quit")
         .centered()
         .render(area, buf);
+}
+
+fn render_create_log_list(area: Rect, buf: &mut Buffer) {
+    let block = Block::new()
+        .title(Line::raw("Create Log Entry").bold().centered())
+        .borders(Borders::TOP)
+        .border_set(symbols::border::EMPTY)
+        .border_style(LOG_ENTRY_HEADER_STYLE)
+        .bg(NORMAL_ROW_BG);
+    let items = vec![
+        Line::raw("Frequency: ____ MHz"),
+        Line::raw("Latitude: ____ ° "),
+        Line::raw("Longitude: ____ °"),
+        Line::raw("Callsign: _______ "),
+        Line::raw("Mode: ____"),
+        Line::raw("Comment: ____________ "),
+        Line::raw("Recording duration: _____ seconds"),
+    ];
 }
 
 impl Widget for &App {
@@ -162,6 +200,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize tracing subscriber for logging
     tracing_subscriber::fmt::init();
+    let selection = 0;
 
     // Load environment variables from .env file
     dotenv().ok();
@@ -183,6 +222,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli_mode = args.latitude.is_some() && args.frequency.is_some();
 
     // Interactive mode: continuously read and write logs
+    //ratatui::run(|terminal|  {
     loop {
         if !cli_mode {
             println!("\n=== SDR Database Entry ===");

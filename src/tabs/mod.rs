@@ -3,11 +3,11 @@
 //pub mod view_logs;
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
-    style::{Color, Stylize, palette::tailwind},
+    layout::{Layout, Rect},
+    style::{Color, Style, Stylize, palette::tailwind},
     symbols,
-    text::Line,
-    widgets::{Block, Padding, Paragraph, Widget},
+    text::{Line, Text},
+    widgets::{Block, Borders, Padding, Paragraph, Widget},
 };
 use strum::{Display, EnumIter, FromRepr};
 
@@ -40,6 +40,23 @@ impl SelectedTab {
             .into()
     }
 
+    pub fn render_create_log_tab(&mut self, area: Rect, buf: &mut Buffer) {
+        let title = Paragraph::new(Text::styled(
+            "Create Log",
+            Style::default().fg(Color::Green),
+        ));
+        let create_log_block = Block::default()
+            .title("Enter Log details")
+            .borders(Borders::NONE)
+            .style(Style::default().bg(Color::DarkGray));
+        let area = centered_rect(60, 25, area);
+    }
+
+    /*    pub fn render_create_log_list(&mut self, area: Rect, buf: &mut Buffer) {
+            let items =
+    }
+        */
+
     pub fn palette(self) -> ratatui::style::Color {
         match self {
             Self::CreateLog => Color::Rgb(138, 173, 244),
@@ -53,11 +70,6 @@ impl SelectedTab {
             .padding(Padding::horizontal(1))
             .border_style(self.palette())
     }
-    pub fn render_create_log_tab(self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("Create Log")
-            .block(self.block())
-            .render(area, buf);
-    }
     pub fn render_view_logs_tab(self, area: Rect, buf: &mut Buffer) {
         Paragraph::new("View Logs")
             .block(self.block())
@@ -69,9 +81,27 @@ impl SelectedTab {
             .render(area, buf);
     }
 }
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
+            ratatui::layout::Constraint::Percentage(percent_y),
+            ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+    Layout::default()
+        .direction(ratatui::layout::Direction::Horizontal)
+        .constraints([
+            ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
+            ratatui::layout::Constraint::Percentage(percent_x),
+            ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1] // Return the middle chunk
+}
 
 impl Widget for SelectedTab {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render(mut self, area: Rect, buf: &mut Buffer) {
         match self {
             SelectedTab::ViewLogs => {
                 self.render_view_logs_tab(area, buf);
