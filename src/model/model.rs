@@ -1,7 +1,9 @@
 use crate::error::ValidationError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
+use serde::Serialize;
 
+#[derive(Serialize, Debug)]
 pub enum SignalMode {
     FM,
     AM,

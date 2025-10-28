@@ -1,12 +1,14 @@
 use ratatui::buffer::Buffer;
+use ratatui::crossterm::event::KeyEvent;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::Borders;
-use sdr_db::model::model::{parse_mode, render};
+use sdr_db::model::model::{SignalMode, parse_mode, render};
 use sdr_db::tabs::SelectedTab;
 use sdr_db::{create_log, establish_connection};
 
 use clap::Parser;
 use dotenvy::dotenv;
+use serde::Serialize;
 use std::env;
 use tracing::{error, info};
 
@@ -14,18 +16,13 @@ use color_eyre::Result;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Offset, Rect},
     style::Stylize,
     symbols,
     text::Line,
     widgets::{Block, Tabs, Widget},
 };
 use strum::IntoEnumIterator;
-
-const LOG_ENTRY_HEADER_STYLE: ratatui::style::Style = Style::new()
-    .fg(Color::Rgb(14, 15, 23))
-    .bg(Color::Rgb(54, 68, 96));
-const NORMAL_ROW_BG: Color = Color::Rgb(14, 15, 23);
 
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
@@ -61,16 +58,6 @@ struct Args {
 
     #[arg(long)]
     recording_duration: Option<f32>,
-}
-
-enum LogEntryFocus {
-    Frequency,
-    Latitude,
-    Longitude,
-    Callsign,
-    Mode,
-    Comment,
-    RecordingDuration,
 }
 
 #[derive(Default)]
@@ -156,24 +143,6 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
     Line::raw("◄ ► to change tab | Press q to quit")
         .centered()
         .render(area, buf);
-}
-
-fn render_create_log_list(area: Rect, buf: &mut Buffer) {
-    let block = Block::new()
-        .title(Line::raw("Create Log Entry").bold().centered())
-        .borders(Borders::TOP)
-        .border_set(symbols::border::EMPTY)
-        .border_style(LOG_ENTRY_HEADER_STYLE)
-        .bg(NORMAL_ROW_BG);
-    let items = vec![
-        Line::raw("Frequency: ____ MHz"),
-        Line::raw("Latitude: ____ ° "),
-        Line::raw("Longitude: ____ °"),
-        Line::raw("Callsign: _______ "),
-        Line::raw("Mode: ____"),
-        Line::raw("Comment: ____________ "),
-        Line::raw("Recording duration: _____ seconds"),
-    ];
 }
 
 impl Widget for &App {
