@@ -8,7 +8,16 @@ pub enum ValidationError {
     InvalidFrequency(f64),
     InvalidTimestamp(String),
     InvalidBoundingBox(String),
+    InvalidRecordingDuration(f32),
     EmptyDataset,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DatabaseError {
+    ConnectionError(String),
+    QueryError(String),
+    NotFound(String),
+    DuplicateEntry(String),
 }
 
 impl fmt::Display for ValidationError {
@@ -18,7 +27,11 @@ impl fmt::Display for ValidationError {
                 write!(f, "Invalid latitude: {} (must be between -90 and 90)", lat)
             }
             ValidationError::InvalidLongitude(lon) => {
-                write!(f, "Invalid longitude: {} (must be between -180 and 180)", lon)
+                write!(
+                    f,
+                    "Invalid longitude: {} (must be between -180 and 180)",
+                    lon
+                )
             }
             ValidationError::InvalidFrequency(freq) => {
                 write!(f, "Invalid frequency: {} (must be positive)", freq)
@@ -31,6 +44,13 @@ impl fmt::Display for ValidationError {
             }
             ValidationError::EmptyDataset => {
                 write!(f, "Dataset is empty")
+            }
+            ValidationError::InvalidRecordingDuration(duration) => {
+                write!(
+                    f,
+                    "Invalid recording duration: {} (must be positive)",
+                    duration
+                )
             }
         }
     }
