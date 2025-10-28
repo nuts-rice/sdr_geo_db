@@ -10,8 +10,7 @@ use ratatui::{
     widgets::{Block, Padding, Paragraph, Widget},
 };
 use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
-
-use crate::create_log;
+use tui_prompts::TextPrompt;
 
 #[derive(Default, Clone, Copy, Display, FromRepr, EnumIter)]
 pub enum SelectedTab {
@@ -55,7 +54,9 @@ impl SelectedTab {
             .padding(Padding::horizontal(1))
             .border_style(self.palette())
     }
-    pub fn render_create_log_tab(self, area: Rect, buf: &mut Buffer) {}
+    pub fn render_create_log_tab(self, area: Rect, buf: &mut Buffer) {
+        todo!()
+    }
     pub fn render_view_logs_tab(self, area: Rect, buf: &mut Buffer) {
         Paragraph::new("View Logs")
             .block(self.block())

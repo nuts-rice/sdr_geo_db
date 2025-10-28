@@ -9,7 +9,16 @@ use ratatui::{
     text::Line,
     widgets::{Block, Borders, Paragraph, Tabs, Widget},
 };
-use serde::Serialize;
+use serde::{Serialize, de::value};
+use tui_prompts::prelude::*;
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+struct CreateLogState<'a> {
+    current_field: LogEntryFocus,
+    coordinates_state: TextState<'a>,
+    frequency_state: TextState<'a>,
+    callsign_state: TextState<'a>,
+}
 const LOG_ENTRY_HEADER_STYLE: ratatui::style::Style = Style::new()
     .fg(Color::Rgb(14, 15, 23))
     .bg(Color::Rgb(54, 68, 96));
@@ -33,6 +42,19 @@ struct NumberField {
     #[serde(skip)]
     label: &'static str,
     value: Option<f32>,
+}
+#[derive(Debug, Serialize)]
+struct FrequencyField {
+    #[serde(skip)]
+    label: &'static str,
+    value: Option<f32>,
+}
+#[derive(Debug, Serialize)]
+struct CoordinatesField {
+    #[serde(skip)]
+    label: &'static str,
+    longitude_value: Option<f32>,
+    latitude_value: Option<f32>,
 }
 
 impl NumberField {
@@ -75,6 +97,23 @@ impl NumberField {
     }
 }
 
+impl Widget for NumberField {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let layout = Layout::horizontal([
+            Constraint::Length(self.label.len() as u16 + 2),
+            Constraint::Fill(1),
+        ]);
+        let chunks = layout.split(area);
+        let label = Line::from_iter([self.label, ": "]).bold();
+        let value = match self.value {
+            Some(v) => Line::from(v.to_string()),
+            None => Line::from("_____"),
+        };
+        label.render(chunks[0], buf);
+        value.render(chunks[1], buf);
+    }
+}
+
 //TODO: should these be Option?
 #[derive(Serialize)]
 struct NewLogInputForm {
@@ -88,8 +127,9 @@ struct NewLogInputForm {
     comment: Option<String>,
     recording_duration: Option<f32>,
 }
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 enum LogEntryFocus {
+    #[default]
     Frequency,
     Latitude,
     Longitude,
