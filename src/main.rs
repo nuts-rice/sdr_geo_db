@@ -1,14 +1,11 @@
 use ratatui::buffer::Buffer;
-use ratatui::crossterm::event::KeyEvent;
-use ratatui::style::{Color, Style};
-use ratatui::widgets::Borders;
-use sdr_db::model::model::{SignalMode, parse_mode, render};
-use sdr_db::tabs::SelectedTab;
+use ratatui::style::Color;
+use sdr_db::model::model::{parse_mode, render};
+use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm};
 use sdr_db::{create_log, establish_connection};
 
 use clap::Parser;
 use dotenvy::dotenv;
-use serde::Serialize;
 use std::env;
 use tracing::{error, info};
 
@@ -16,9 +13,8 @@ use color_eyre::Result;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Offset, Rect},
+    layout::{Constraint, Layout, Rect},
     style::Stylize,
-    symbols,
     text::Line,
     widgets::{Block, Tabs, Widget},
 };
@@ -64,6 +60,7 @@ struct Args {
 struct App {
     state: AppState,
     selected_tab: SelectedTab,
+    new_log_form: NewLogInputForm,
 }
 
 #[derive(Default, Clone, Eq, PartialEq)]
@@ -123,7 +120,9 @@ impl App {
         Ok(())
     }
 
-    fn handle_create_log_entry(&mut self) {}
+    fn handle_create_log_entry(&mut self) {
+        todo!()
+    }
     pub fn next_tab(&mut self) {
         self.selected_tab = self.selected_tab.next();
     }
@@ -156,6 +155,18 @@ impl Widget for &App {
 
         render_title(buf, title_area);
         self.render_tabs(tabs_area, buf);
+        match &self.selected_tab {
+            SelectedTab::CreateLog => {
+                todo!()
+                //self.selected_tab.render_create_log_tab(, buf);
+            }
+            SelectedTab::ViewLogs => {
+                todo!()
+            }
+            SelectedTab::SpectrumViewer => {
+                todo!()
+            }
+        }
         self.selected_tab.render(inner_area, buf);
         render_footer(footer_area, buf);
     }
