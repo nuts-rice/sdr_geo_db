@@ -119,13 +119,13 @@ impl App {
         //TODO: signal mode parsing
         match create_log(
             conn,
-            form.frequency.unwrap(),
-            form.latitude.unwrap(),
-            form.longitude.unwrap(),
-            form.callsign.as_ref().unwrap().to_string(),
-            "FM".to_string(),
-            form.comment.clone(),
-            form.recording_duration.unwrap(),
+            form.frequency,
+            form.latitude,
+            form.longitude,
+            form.callsign.to_string(),
+            form.mode,
+            Some(form.comment.clone()),
+            form.recording_duration,
         ) {
             Ok(log) => {
                 info!("✓ Log entry created successfully!");

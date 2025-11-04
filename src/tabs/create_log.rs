@@ -206,13 +206,13 @@ impl Widget for NumberField {
 pub struct NewLogInputForm {
     #[serde(skip)]
     pub focus: LogEntryFocus,
-    pub frequency: Option<f32>,
-    pub latitude: Option<f32>,
-    pub longitude: Option<f32>,
-    pub callsign: Option<String>,
-    pub mode: Option<SignalMode>,
-    pub comment: Option<String>,
-    pub recording_duration: Option<f32>,
+    pub frequency: f32,
+    pub latitude: f32,
+    pub longitude: f32,
+    pub callsign: String,
+    pub mode: SignalMode,
+    pub comment: String,
+    pub recording_duration: f32,
 }
 
 impl Default for NewLogInputForm {
@@ -225,13 +225,13 @@ impl NewLogInputForm {
     pub fn new() -> Self {
         Self {
             focus: LogEntryFocus::default(),
-            frequency: None,
-            latitude: None,
-            longitude: None,
-            callsign: None,
-            mode: None,
-            comment: None,
-            recording_duration: None,
+            frequency: 0.0,
+            latitude: 0.0,
+            longitude: 0.0,
+            callsign: "____".to_string(),
+            mode: SignalMode::AM,
+            comment: "______".to_string(),
+            recording_duration: 0.0,
         }
     }
 
@@ -256,116 +256,132 @@ impl NewLogInputForm {
             LogEntryFocus::Frequency => {
                 if let KeyCode::Char(c) = event.code {
                     if c.is_ascii_digit() || c == '.' {
-                        let current = self.frequency.unwrap_or(0.).to_string();
+                        let current = self.frequency.to_string();
                         let new_val = format!("{}{}", current, c);
-                        self.frequency = new_val.parse::<f32>().ok();
+                        self.frequency = new_val.parse::<f32>().unwrap_or_default();
                     }
-                } else if event.code == KeyCode::Backspace
-                    && let Some(current) = self.frequency
-                {
-                    let mut current_str = current.to_string();
-                    current_str.pop();
-                    self.frequency = current_str.parse::<f32>().ok();
+                } else if event.code == KeyCode::Backspace {
+                    if let (current) = self.frequency {
+                        let mut current_str = current.to_string();
+                        current_str.pop();
+                        self.frequency = if current_str.is_empty() {
+                            0.0
+                        } else {
+                            current_str.parse::<f32>().unwrap_or_default()
+                        };
+                    }
                 }
             }
             LogEntryFocus::Latitude => {
                 if let KeyCode::Char(c) = event.code {
                     if c.is_ascii_digit() || c == '.' || c == '-' {
-                        let current = self.latitude.unwrap_or(0.).to_string();
+                        let current = self.latitude.to_string();
                         let new_val = format!("{}{}", current, c);
-                        self.latitude = new_val.parse::<f32>().ok();
+                        self.latitude = new_val.parse::<f32>().unwrap_or_default();
                     }
-                } else if event.code == KeyCode::Backspace
-                    && let Some(current) = self.latitude
-                {
-                    let mut current_str = current.to_string();
-                    current_str.pop();
-                    self.latitude = current_str.parse::<f32>().ok();
+                } else if event.code == KeyCode::Backspace {
+                    if let (current) = self.latitude {
+                        let mut current_str = current.to_string();
+                        current_str.pop();
+                        self.latitude = if current_str.is_empty() {
+                            0.0
+                        } else {
+                            current_str.parse::<f32>().unwrap_or_default()
+                        };
+                    }
                 }
             }
             LogEntryFocus::Longitude => {
                 if let KeyCode::Char(c) = event.code {
                     if c.is_ascii_digit() || c == '.' || c == '-' {
-                        let current = self.longitude.unwrap_or(0.).to_string();
+                        let current = self.longitude.to_string();
                         let new_val = format!("{}{}", current, c);
-                        self.longitude = new_val.parse::<f32>().ok();
+                        self.longitude = new_val.parse::<f32>().unwrap_or_default();
                     }
-                } else if event.code == KeyCode::Backspace
-                    && let Some(current) = self.longitude
-                {
-                    let mut current_str = current.to_string();
-                    current_str.pop();
-                    self.longitude = current_str.parse::<f32>().ok();
+                } else if event.code == KeyCode::Backspace {
+                    if let (current) = self.longitude {
+                        let mut current_str = current.to_string();
+                        current_str.pop();
+                        self.longitude = if current_str.is_empty() {
+                            0.0
+                        } else {
+                            current_str.parse::<f32>().unwrap_or_default()
+                        };
+                    }
                 }
             }
             LogEntryFocus::Callsign => {
                 if let KeyCode::Char(c) = event.code {
-                    let mut current = self.callsign.clone().unwrap_or_default();
+                    let mut current = self.callsign.clone();
                     current.push(c);
-                    self.callsign = Some(current);
+                    self.comment = current;
                 } else if event.code == KeyCode::Backspace
-                    && let Some(mut current) = self.callsign.clone()
+                    && let current = self.callsign.clone()
                 {
-                    current.pop();
-                    self.callsign = if current.is_empty() {
-                        None
+                    let mut new_callsign = current;
+                    new_callsign.pop();
+                    self.callsign = if new_callsign.is_empty() {
+                        "".to_string()
                     } else {
-                        Some(current)
+                        new_callsign
                     };
                 }
             }
             LogEntryFocus::Mode => match event.code {
                 KeyCode::Up | KeyCode::Right => {
-                    self.mode = Some(match self.mode {
-                        None => SignalMode::AM,
-                        Some(SignalMode::AM) => SignalMode::FM,
-                        Some(SignalMode::FM) => SignalMode::USB,
-                        Some(SignalMode::USB) => SignalMode::LSB,
-                        Some(SignalMode::LSB) => SignalMode::CW,
-                        Some(SignalMode::CW) => SignalMode::AM,
-                    });
+                    self.mode = match self.mode {
+                        SignalMode::AM => SignalMode::FM,
+                        SignalMode::FM => SignalMode::USB,
+                        SignalMode::USB => SignalMode::LSB,
+                        SignalMode::LSB => SignalMode::CW,
+                        SignalMode::CW => SignalMode::AM,
+                    };
                 }
                 KeyCode::Down | KeyCode::Left => {
-                    self.mode = Some(match self.mode {
-                        None => SignalMode::AM,
-                        Some(SignalMode::AM) => SignalMode::CW,
-                        Some(SignalMode::CW) => SignalMode::LSB,
-                        Some(SignalMode::LSB) => SignalMode::USB,
-                        Some(SignalMode::USB) => SignalMode::FM,
-                        Some(SignalMode::FM) => SignalMode::AM,
-                    });
+                    self.mode = match self.mode {
+                        SignalMode::AM => SignalMode::CW,
+                        SignalMode::CW => SignalMode::LSB,
+                        SignalMode::LSB => SignalMode::USB,
+                        SignalMode::USB => SignalMode::FM,
+                        SignalMode::FM => SignalMode::AM,
+                    };
                 }
                 _ => {}
             },
             LogEntryFocus::Comment => {
                 if let KeyCode::Char(c) = event.code {
-                    let mut current = self.comment.clone().unwrap_or_default();
+                    let mut current = self.comment.clone();
                     current.push(c);
-                    self.comment = Some(current);
+                    self.comment = current;
                 } else if event.code == KeyCode::Backspace
-                    && let Some(mut comment) = self.comment.clone()
+                    && let current = self.comment.clone()
                 {
-                    comment.pop();
-                    self.comment = if comment.is_empty() {
-                        None
+                    let mut new_comment = current;
+                    new_comment.pop();
+                    self.comment = if new_comment.is_empty() {
+                        "".to_string()
                     } else {
-                        Some(comment)
+                        new_comment
                     };
                 }
             }
             LogEntryFocus::RecordingDuration => {
                 if let KeyCode::Char(c) = event.code {
                     if c.is_ascii_digit() || c == '.' {
-                        let current = self.recording_duration.unwrap_or(0.0).to_string();
+                        let current = self.recording_duration.to_string();
                         let new_value = format!("{}{}", current, c);
-                        self.recording_duration = new_value.parse::<f32>().ok();
+                        self.recording_duration = new_value.parse::<f32>().unwrap_or_default();
                     }
-                } else if event.code == KeyCode::Backspace
-                    && let Some(dur) = self.recording_duration
-                {
-                    let mut s = dur.to_string();
-                    s.pop();
-                    self.recording_duration = s.parse::<f32>().ok();
+                } else if event.code == KeyCode::Backspace {
+                    if let (dur) = self.recording_duration {
+                        let mut s = dur.to_string();
+                        s.pop();
+                        self.recording_duration = if s.is_empty() {
+                            0.0
+                        } else {
+                            s.parse::<f32>().unwrap_or_default()
+                        };
+                    }
                 }
             }
         }
@@ -391,16 +407,13 @@ impl NewLogInputForm {
             LogEntryFocus::RecordingDuration => "Recording duration: ".len(),
         };
         let value_len = match self.focus {
-            LogEntryFocus::Frequency => self.frequency.map(|f| f.to_string().len()).unwrap_or(0),
-            LogEntryFocus::Latitude => self.latitude.map(|f| f.to_string().len()).unwrap_or(0),
-            LogEntryFocus::Longitude => self.longitude.map(|f| f.to_string().len()).unwrap_or(0),
-            LogEntryFocus::Callsign => self.callsign.as_ref().map(|s| s.len()).unwrap_or(0),
+            LogEntryFocus::Frequency => self.frequency.to_string().len(),
+            LogEntryFocus::Latitude => self.latitude.to_string().len(),
+            LogEntryFocus::Longitude => self.longitude.to_string().len(),
+            LogEntryFocus::Callsign => self.callsign.len(),
             LogEntryFocus::Mode => 0, // Mode doesn't show cursor
-            LogEntryFocus::Comment => self.comment.as_ref().map(|s| s.len()).unwrap_or(0),
-            LogEntryFocus::RecordingDuration => self
-                .recording_duration
-                .map(|f| f.to_string().len())
-                .unwrap_or(0),
+            LogEntryFocus::Comment => self.comment.len(),
+            LogEntryFocus::RecordingDuration => self.recording_duration.to_string().len(),
         };
         Some((
             area.x + label_len as u16 + 2 + value_len as u16,
@@ -463,19 +476,9 @@ pub fn render_create_log_form(form: &NewLogInputForm, area: Rect, buf: &mut Buff
             Style::default().fg(Color::White)
         }
     };
-    let freq_field = format!(
-        "Frequency: {} MHz",
-        form.frequency
-            .map(|f| f.to_string())
-            .unwrap_or("_____".to_string())
-    );
+    let freq_field = format!("Frequency: {} MHz", form.frequency.to_string());
 
-    let lat_field = format!(
-        "Latitude: {} °",
-        form.latitude
-            .map(|f| f.to_string())
-            .unwrap_or("_____".to_string())
-    );
+    let lat_field = format!("Latitude: {} °", form.latitude.to_string());
 
     Paragraph::new(Line::from(freq_field))
         .style(field_style(form.focus == LogEntryFocus::Frequency))
@@ -485,39 +488,25 @@ pub fn render_create_log_form(form: &NewLogInputForm, area: Rect, buf: &mut Buff
         .style(field_style(form.focus == LogEntryFocus::Latitude))
         .render(chunks[2], buf);
 
-    let lon_field = format!(
-        "Longitude: {} °",
-        form.longitude
-            .map(|f| f.to_string())
-            .unwrap_or("_____".to_string())
-    );
+    let lon_field = format!("Longitude: {} °", form.longitude.to_string());
 
     Paragraph::new(Line::from(lon_field))
         .style(field_style(form.focus == LogEntryFocus::Longitude))
         .render(chunks[3], buf);
 
-    let callsign_field = format!(
-        "Callsign: {}",
-        form.callsign.as_deref().unwrap_or("_______")
-    );
+    let callsign_field = format!("Callsign: {}", form.callsign);
 
     Paragraph::new(Line::from(callsign_field))
         .style(field_style(form.focus == LogEntryFocus::Callsign))
         .render(chunks[4], buf);
 
-    let mode_field = format!(
-        "Mode: {}",
-        form.mode
-            .clone()
-            .map(|m| format!("{:?}", m))
-            .unwrap_or("_____".to_string())
-    );
+    let mode_field = format!("Mode: {:?}", form.mode);
 
     Paragraph::new(Line::from(mode_field))
         .style(field_style(form.focus == LogEntryFocus::Mode))
         .render(chunks[5], buf);
 
-    let comment_field = format!("Comment: {}", form.comment.as_deref().unwrap_or("_____"));
+    let comment_field = format!("Comment: {}", form.comment);
 
     Paragraph::new(Line::from(comment_field))
         .style(field_style(form.focus == LogEntryFocus::Comment))
@@ -525,9 +514,7 @@ pub fn render_create_log_form(form: &NewLogInputForm, area: Rect, buf: &mut Buff
 
     let duration_field = format!(
         "Recording duration: {} seconds",
-        form.recording_duration
-            .map(|d| d.to_string())
-            .unwrap_or("_____".to_string())
+        form.recording_duration.to_string()
     );
 
     Paragraph::new(Line::from(duration_field))

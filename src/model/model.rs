@@ -3,7 +3,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use serde::Serialize;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Copy)]
 pub enum SignalMode {
     FM,
     AM,
@@ -119,6 +119,18 @@ pub fn render(log: &Log) {
         log.timestamp,
         log.recording_duration,
     );
+}
+
+impl SignalMode {
+    pub fn to_str(&self) -> &str {
+        match self {
+            SignalMode::FM => "FM",
+            SignalMode::AM => "AM",
+            SignalMode::USB => "USB",
+            SignalMode::LSB => "LSB",
+            SignalMode::CW => "CW",
+        }
+    }
 }
 
 // WIP: parsing mode from input

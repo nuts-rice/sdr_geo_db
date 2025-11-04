@@ -8,15 +8,14 @@ pub mod spatial;
 pub mod tabs;
 
 pub use error::{DatabaseError, ValidationError};
-pub use model::{Log, NewLog};
-
+pub use model::{Log, NewLog, model::SignalMode};
 pub fn create_log(
     conn: &mut PgConnection,
     frequency: f32,
     xcoord: f32,
     ycoord: f32,
     callsign: String,
-    mode: String,
+    mode: SignalMode,
     comment: Option<String>,
     recording_duration: f32,
 ) -> Result<Log, diesel::result::Error> {
@@ -27,7 +26,7 @@ pub fn create_log(
         xcoord,
         ycoord,
         callsign: &callsign,
-        mode: &mode,
+        mode: &mode.to_str(),
         comment: comment.as_deref(),
         recording_duration,
     };
