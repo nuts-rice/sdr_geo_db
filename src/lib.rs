@@ -38,6 +38,15 @@ pub fn create_log(
         .get_result(conn)
 }
 
+pub fn get_logs(conn: &mut PgConnection, limit: i64) -> Result<Vec<Log>, diesel::result::Error> {
+    use crate::schema::logs::dsl::*;
+
+    logs.order(timestamp.desc())
+        .limit(limit)
+        .select(Log::as_select())
+        .load(conn)
+}
+
 pub fn establish_connection(database_url: &str) -> PgConnection {
     PgConnection::establish(database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))

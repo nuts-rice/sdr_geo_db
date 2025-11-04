@@ -11,7 +11,7 @@ use ratatui::{
 };
 use strum::{Display, EnumIter, FromRepr};
 
-#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter)]
+#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq)]
 pub enum SelectedTab {
     #[default]
     #[strum(to_string = "Create Log")]
@@ -53,7 +53,12 @@ impl SelectedTab {
             .padding(Padding::horizontal(1))
             .border_style(self.palette())
     }
-    pub fn render_create_log_tab(self, form: &create_log::NewLogInputForm, area: Rect, buf: &mut Buffer) {
+    pub fn render_create_log_tab(
+        self,
+        form: &create_log::NewLogInputForm,
+        area: Rect,
+        buf: &mut Buffer,
+    ) {
         create_log::render_create_log_form(form, area, buf);
     }
     pub fn render_view_logs_tab(self, area: Rect, buf: &mut Buffer) {
@@ -75,9 +80,9 @@ impl Widget for SelectedTab {
                 self.render_view_logs_tab(area, buf);
             }
             SelectedTab::CreateLog => {
-                 Paragraph::new("Create Log (use render_create_log_tab)")
-                      .block(self.block())
-                      .render(area, buf);
+                Paragraph::new("Create Log (use render_create_log_tab)")
+                    .block(self.block())
+                    .render(area, buf);
             }
             SelectedTab::SpectrumViewer => {
                 self.render_spectrum_viewer_tab(area, buf);

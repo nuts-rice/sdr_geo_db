@@ -1,3 +1,4 @@
+use diesel::PgConnection;
 use ratatui::buffer::Buffer;
 use ratatui::style::Color;
 use sdr_db::model::model::{parse_mode, render};
@@ -71,8 +72,15 @@ enum AppState {
 }
 
 impl App {
+    pub fn new() -> Self {
+        Self {
+            state: AppState::Running,
+            selected_tab: SelectedTab::CreateLog,
+            new_log_form: NewLogInputForm::default(),
+        }
+    }
     //TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
-    fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         while self.state == AppState::Running {
             terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
             self.handle_events()?;
@@ -106,15 +114,87 @@ impl App {
         (title_area, blocks)
     }
 
+    fn submit_log_entry(&mut self, conn: &mut PgConnection) {
+        let form = &self.new_log_form;
+        //TODO: signal mode parsing
+        match create_log(
+            conn,
+            form.frequency.unwrap(),
+            form.latitude.unwrap(),
+            form.longitude.unwrap(),
+            form.callsign.as_ref().unwrap().to_string(),
+            "FM".to_string(),
+            form.comment.clone(),
+            form.recording_duration.unwrap(),
+        ) {
+            Ok(log) => {
+                info!("✓ Log entry created successfully!");
+                render(&log);
+            }
+            Err(e) => {
+                error!("Failed to create log entry: {}", e);
+            }
+        }
+        self.new_log_form = NewLogInputForm::default();
+    }
+
     fn handle_events(&mut self) -> std::io::Result<()> {
         if let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
             match key.code {
-                KeyCode::Char('l') | KeyCode::Right => self.next_tab(),
-                KeyCode::Char('h') | KeyCode::Left => self.previous_tab(),
-                KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+                KeyCode::Char('q') | KeyCode::Esc
+                    if self.selected_tab != SelectedTab::CreateLog =>
+                {
+                    self.quit();
+                    return Ok(());
+                }
+                KeyCode::Char('l') => {
+                    self.next_tab();
+                    return Ok(());
+                }
+                KeyCode::Char('h') => {
+                    self.previous_tab();
+                    return Ok(());
+                }
                 _ => {}
+            }
+            match &self.selected_tab {
+                SelectedTab::CreateLog => {
+                    match key.code {
+                        KeyCode::Enter => {
+                            //TODO: Implement submit_log_entry with connection
+                            // For now, just reset the form
+                            info!("Enter pressed - would submit log entry");
+                            self.new_log_form = NewLogInputForm::default();
+                        }
+                        KeyCode::Esc => {
+                            self.new_log_form = NewLogInputForm::default();
+                        }
+                        KeyCode::Tab => {
+                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                                self.new_log_form.previous_field();
+                            } else {
+                                self.new_log_form.next_field();
+                            }
+                        }
+                        _ => {
+                            self.new_log_form.handle_key_event(key);
+                        }
+                    }
+                }
+                _ => match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => {
+                        self.quit();
+                    }
+                    KeyCode::Char('l') => {
+                        self.next_tab();
+                    }
+                    KeyCode::Char('h') => {
+                        self.previous_tab();
+                    }
+                    _ => {}
+                },
             }
         }
         Ok(())
@@ -155,36 +235,38 @@ impl Widget for &App {
 
         render_title(buf, title_area);
         self.render_tabs(tabs_area, buf);
-        match &self.selected_tab {
+        match self.selected_tab {
             SelectedTab::CreateLog => {
-                todo!()
-                //self.selected_tab.render_create_log_tab(, buf);
+                self.selected_tab
+                    .render_create_log_tab(&self.new_log_form, inner_area, buf);
             }
             SelectedTab::ViewLogs => {
-                todo!()
+                self.selected_tab.render_view_logs_tab(inner_area, buf);
             }
             SelectedTab::SpectrumViewer => {
-                todo!()
+                self.selected_tab
+                    .render_spectrum_viewer_tab(inner_area, buf);
             }
         }
-        self.selected_tab.render(inner_area, buf);
         render_footer(footer_area, buf);
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     color_eyre::install()?;
-    //TODO: Implement TUI with App, AppState, Tabs etc
-    //let terminal = ratatui::init();
-    //let _ = run_tui(terminal);
-
-    // Initialize tracing subscriber for logging
     tracing_subscriber::fmt::init();
-    let selection = 0;
 
-    // Load environment variables from .env file
-    dotenv().ok();
+    // Initialize terminal
+    let terminal = ratatui::init();
+    let result = App::new().run(terminal);
+    ratatui::restore();
 
+    result?;
+    Ok(())
+}
+
+/*
+    // OLD CLI CODE - COMMENTED OUT FOR TUI DEVELOPMENT
     // Parse command line arguments
     let args = Args::parse();
 
@@ -327,3 +409,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Exiting...");
     Ok(())
 }
+*/
