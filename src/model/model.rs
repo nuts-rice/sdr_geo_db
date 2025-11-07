@@ -37,7 +37,7 @@ pub struct NewLog<'a> {
     pub ycoord: f32,
     pub callsign: &'a str,
     pub mode: &'a str,
-    pub comment: Option<&'a str>,
+    pub comment: &'a str,
     pub recording_duration: f32,
     // timestamp will use database default (CURRENT_TIMESTAMP)
 }
@@ -75,7 +75,7 @@ impl<'a> NewLog<'a> {
         ycoord: f32,
         callsign: &'a str,
         mode: &'a str,
-        comment: Option<&'a str>,
+        comment: &'a str,
         recording_duration: f32,
     ) -> Result<Self, ValidationError> {
         // Validate frequency must be positive

@@ -1,13 +1,11 @@
-use diesel::PgConnection;
+use diesel::{Connection, PgConnection};
 use ratatui::buffer::Buffer;
 use ratatui::style::Color;
-use sdr_db::model::model::{parse_mode, render};
+use sdr_db::model::model::render;
 use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm};
-use sdr_db::{create_log, establish_connection};
+use sdr_db::create_log;
 
 use clap::Parser;
-use dotenvy::dotenv;
-use std::env;
 use tracing::{error, info};
 
 use color_eyre::Result;
@@ -57,7 +55,6 @@ struct Args {
     recording_duration: Option<f32>,
 }
 
-#[derive(Default)]
 struct App {
     state: AppState,
     selected_tab: SelectedTab,
@@ -80,10 +77,12 @@ impl App {
         }
     }
     //TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+    pub fn run(mut self, mut terminal: DefaultTerminal, database_url: &str) -> Result<()> {
         while self.state == AppState::Running {
+            let conn = &mut PgConnection::establish(database_url)?;
+
             terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
-            self.handle_events()?;
+            self.handle_events(conn)?;
         }
         Ok(())
     }
@@ -116,36 +115,41 @@ impl App {
 
     fn submit_log_entry(&mut self, conn: &mut PgConnection) {
         let form = &self.new_log_form;
-        //TODO: signal mode parsing
-        match create_log(
-            conn,
-            form.frequency,
-            form.latitude,
-            form.longitude,
-            form.callsign.to_string(),
-            form.mode,
-            Some(form.comment.clone()),
-            form.recording_duration,
-        ) {
-            Ok(log) => {
-                info!("✓ Log entry created successfully!");
-                render(&log);
+        if form.frequency > 0.0
+            && form.latitude.abs() <= 90.0
+            && form.longitude.abs() <= 180.0
+            && form.recording_duration >= 0.
+        {
+            match create_log(
+                conn,
+                form.frequency,
+                form.latitude,
+                form.longitude,
+                form.callsign.to_string(),
+                form.mode,
+                form.comment.clone(),
+                form.recording_duration,
+            ) {
+                Ok(log) => {
+                    info!("✓ Log entry created successfully!");
+                    render(&log);
+                }
+                Err(e) => {
+                    error!("Failed to create log entry: {}", e);
+                }
             }
-            Err(e) => {
-                error!("Failed to create log entry: {}", e);
-            }
+            self.new_log_form = NewLogInputForm::default();
         }
-        self.new_log_form = NewLogInputForm::default();
     }
 
-    fn handle_events(&mut self) -> std::io::Result<()> {
+    fn handle_events(&mut self, conn: &mut PgConnection) -> std::io::Result<()> {
         if let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc
-                    if self.selected_tab != SelectedTab::CreateLog =>
-                {
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    //       if self.selected_tab != SelectedTab::CreateLog =>
+                    //   {
                     self.quit();
                     return Ok(());
                 }
@@ -160,29 +164,24 @@ impl App {
                 _ => {}
             }
             match &self.selected_tab {
-                SelectedTab::CreateLog => {
-                    match key.code {
-                        KeyCode::Enter => {
-                            //TODO: Implement submit_log_entry with connection
-                            // For now, just reset the form
-                            info!("Enter pressed - would submit log entry");
-                            self.new_log_form = NewLogInputForm::default();
-                        }
-                        KeyCode::Esc => {
-                            self.new_log_form = NewLogInputForm::default();
-                        }
-                        KeyCode::Tab => {
-                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
-                                self.new_log_form.previous_field();
-                            } else {
-                                self.new_log_form.next_field();
-                            }
-                        }
-                        _ => {
-                            self.new_log_form.handle_key_event(key);
+                SelectedTab::CreateLog => match key.code {
+                    KeyCode::Enter => {
+                        self.submit_log_entry(conn);
+                    }
+                    KeyCode::Esc => {
+                        self.new_log_form = NewLogInputForm::default();
+                    }
+                    KeyCode::Tab => {
+                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                            self.new_log_form.previous_field();
+                        } else {
+                            self.new_log_form.next_field();
                         }
                     }
-                }
+                    _ => {
+                        self.new_log_form.handle_key_event(key);
+                    }
+                },
                 _ => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => {
                         self.quit();
@@ -200,9 +199,6 @@ impl App {
         Ok(())
     }
 
-    fn handle_create_log_entry(&mut self) {
-        todo!()
-    }
     pub fn next_tab(&mut self) {
         self.selected_tab = self.selected_tab.next();
     }
@@ -255,10 +251,11 @@ impl Widget for &App {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     color_eyre::install()?;
     tracing_subscriber::fmt::init();
-
+    let database_url = dotenvy::var("DATABASE_URL").expect("DATABASE_URL must be set ");
     // Initialize terminal
     let terminal = ratatui::init();
-    let result = App::new().run(terminal);
+
+    let result = App::new().run(terminal, &database_url);
     ratatui::restore();
 
     result?;

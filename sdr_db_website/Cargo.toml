@@ -1,0 +1,11 @@
+[package]
+name = "sdr_db_website"
+version = "0.1.0"
+authors = ["nuts_rice <red44443@gmail.com>"]
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+ratatui = { version = "0.29.0", default-features = false }
+color-eyre = "0.6.5"
+ratzilla = "0.1.0"

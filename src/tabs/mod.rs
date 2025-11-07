@@ -11,6 +11,12 @@ use ratatui::{
 };
 use strum::{Display, EnumIter, FromRepr};
 
+const TAB_TITLE_PALETTE: [Color; 3] = [
+    Color::Rgb(138, 173, 244),
+    Color::Rgb(166, 218, 149),
+    Color::Rgb(237, 135, 150),
+];
+
 #[derive(Default, Clone, Copy, Display, FromRepr, EnumIter, PartialEq)]
 pub enum SelectedTab {
     #[default]
@@ -42,9 +48,9 @@ impl SelectedTab {
 
     pub fn palette(self) -> ratatui::style::Color {
         match self {
-            Self::CreateLog => Color::Rgb(138, 173, 244),
-            Self::ViewLogs => Color::Rgb(166, 218, 149),
-            Self::SpectrumViewer => Color::Rgb(237, 135, 150),
+            Self::CreateLog => TAB_TITLE_PALETTE[0],
+            Self::ViewLogs => TAB_TITLE_PALETTE[1],
+            Self::SpectrumViewer => TAB_TITLE_PALETTE[2],
         }
     }
     pub fn block(self) -> Block<'static> {

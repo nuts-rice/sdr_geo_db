@@ -16,7 +16,7 @@ pub fn create_log(
     ycoord: f32,
     callsign: String,
     mode: SignalMode,
-    comment: Option<String>,
+    comment: String,
     recording_duration: f32,
 ) -> Result<Log, diesel::result::Error> {
     use crate::schema::logs;
@@ -26,8 +26,8 @@ pub fn create_log(
         xcoord,
         ycoord,
         callsign: &callsign,
-        mode: &mode.to_str(),
-        comment: comment.as_deref(),
+        mode: mode.to_str(),
+        comment: &comment,
         recording_duration,
     };
 
