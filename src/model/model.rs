@@ -2,7 +2,7 @@ use crate::error::ValidationError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use serde::Serialize;
-
+//Frequency is in MHz
 #[derive(Serialize, Debug, Clone, Copy)]
 pub enum SignalMode {
     FM,
@@ -13,7 +13,7 @@ pub enum SignalMode {
 }
 
 /// Database representation of an SDR measurement log entry
-#[derive(Debug, Clone, Queryable, Selectable)]
+#[derive(Debug, Clone, Queryable, Selectable, Serialize)]
 #[diesel(table_name = crate::schema::logs)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Log {
@@ -39,7 +39,7 @@ pub struct NewLog<'a> {
     pub mode: &'a str,
     pub comment: &'a str,
     pub recording_duration: f32,
-    // timestamp will use database default (CURRENT_TIMESTAMP)
+    pub timestamp: NaiveDateTime,
 }
 
 impl Log {
@@ -48,7 +48,6 @@ impl Log {
         DateTime::<Utc>::from_naive_utc_and_offset(self.timestamp, Utc)
     }
 
-    /// Get frequency in Hz (converts from MHz stored in DB)
     pub fn frequency_hz(&self) -> f64 {
         self.frequency as f64
     }
@@ -77,6 +76,7 @@ impl<'a> NewLog<'a> {
         mode: &'a str,
         comment: &'a str,
         recording_duration: f32,
+        timestamp: NaiveDateTime,
     ) -> Result<Self, ValidationError> {
         // Validate frequency must be positive
         if frequency <= 0.0 {
@@ -102,15 +102,18 @@ impl<'a> NewLog<'a> {
             mode,
             comment,
             recording_duration,
+            timestamp,
         })
     }
 }
 
 /// Render a log entry to the console
-pub fn render(log: &Log) {
-    println!(
-        "{} MHz | Callsign: {} | Coordinate: ({}, {}) | Comment: {:?} | Mode: {} | Recorded at: {} | Duration: {:.2} sec",
-        log.frequency / 1_000_000.,
+pub fn render_log(log: &Log) -> String {
+    let log_string = format!(
+        "{} MHz | Callsign: {} | Coordinate: ({}, {}) \n
+        | Comment: {:?} | Mode: {} | Recorded at: {} \n
+        | Duration: {:.2} sec",
+        log.frequency,
         log.callsign.as_deref().unwrap_or("").to_uppercase(),
         log.xcoord,
         log.ycoord,
@@ -119,6 +122,24 @@ pub fn render(log: &Log) {
         log.timestamp,
         log.recording_duration,
     );
+    log_string
+}
+
+pub fn render_new_log(new_log: &NewLog) -> String {
+    let log_string = format!(
+        "{} MHz | Callsign: {} | Coordinate: ({}, {}) \n 
+        | Comment: {:?} | Mode: {} | Recorded at: {} \n
+        | Duration: {:.2} sec",
+        new_log.frequency,
+        new_log.callsign.to_uppercase(),
+        new_log.xcoord,
+        new_log.ycoord,
+        new_log.comment,
+        new_log.mode,
+        new_log.timestamp,
+        new_log.recording_duration,
+    );
+    log_string
 }
 
 impl SignalMode {

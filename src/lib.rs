@@ -29,6 +29,7 @@ pub fn create_log(
         mode: mode.to_str(),
         comment: &comment,
         recording_duration,
+        timestamp: chrono::Utc::now().naive_utc(),
     };
 
     diesel::insert_into(logs::table)

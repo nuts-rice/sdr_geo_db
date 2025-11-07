@@ -1,9 +1,11 @@
 use diesel::{Connection, PgConnection};
 use ratatui::buffer::Buffer;
-use ratatui::style::Color;
-use sdr_db::model::model::render;
-use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm};
+use ratatui::style::{Color, Style};
+use ratatui::widgets::{Borders, Paragraph};
 use sdr_db::create_log;
+use sdr_db::model::model::{render_log, render_new_log};
+use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm};
+use sdr_db::{Log, NewLog};
 
 use clap::Parser;
 use tracing::{error, info};
@@ -14,7 +16,7 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     style::Stylize,
-    text::Line,
+    text::{Line, Text},
     widgets::{Block, Tabs, Widget},
 };
 use strum::IntoEnumIterator;
@@ -99,20 +101,6 @@ impl App {
             .render(area, buf);
     }
 
-    fn render_block(title: &str) -> Block {
-        Block::bordered()
-            .gray()
-            .title(title.bold().into_centered_line())
-    }
-
-    fn calculate_layout(area: Rect) -> (Rect, [Rect; 1]) {
-        let main_layout = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]);
-        let block_layout = Layout::vertical([Constraint::Max(4); 1]);
-        let [title_area, main_area] = main_layout.areas(area);
-        let blocks = block_layout.areas(main_area);
-        (title_area, blocks)
-    }
-
     fn submit_log_entry(&mut self, conn: &mut PgConnection) {
         let form = &self.new_log_form;
         if form.frequency > 0.0
@@ -132,13 +120,12 @@ impl App {
             ) {
                 Ok(log) => {
                     info!("✓ Log entry created successfully!");
-                    render(&log);
+                    self.new_log_form.created_log = Some(log);
                 }
                 Err(e) => {
                     error!("Failed to create log entry: {}", e);
                 }
             }
-            self.new_log_form = NewLogInputForm::default();
         }
     }
 
@@ -146,6 +133,12 @@ impl App {
         if let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
+            // If popup is showing, any key dismisses it
+            if self.new_log_form.created_log.is_some() {
+                self.new_log_form = NewLogInputForm::default();
+                return Ok(());
+            }
+
             match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => {
                     //       if self.selected_tab != SelectedTab::CreateLog =>
@@ -219,6 +212,26 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
         .centered()
         .render(area, buf);
 }
+fn create_log_exit_popup(area: Rect, buf: &mut Buffer, log: &Log) {
+    let popup_block = Block::default()
+        .title("Log Created")
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::Rgb(14, 15, 23)));
+    let exit_string = format!(
+        "New entry created: {}\n Press any key to continue...",
+        render_log(log)
+    );
+    let exit_text = Text::styled(exit_string, Style::default().fg(Color::Rgb(93, 53, 59)));
+
+    let popup_area = Rect {
+        x: area.x + area.width / 8,
+        y: area.y + area.height / 4,
+        width: area.width * 3 / 4,
+        height: area.height / 2,
+    };
+    let popup_paragraph = Paragraph::new(exit_text).block(popup_block);
+    popup_paragraph.render(popup_area, buf);
+}
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -235,6 +248,9 @@ impl Widget for &App {
             SelectedTab::CreateLog => {
                 self.selected_tab
                     .render_create_log_tab(&self.new_log_form, inner_area, buf);
+                if let Some(ref log) = self.new_log_form.created_log {
+                    create_log_exit_popup(area, buf, log);
+                }
             }
             SelectedTab::ViewLogs => {
                 self.selected_tab.render_view_logs_tab(inner_area, buf);
