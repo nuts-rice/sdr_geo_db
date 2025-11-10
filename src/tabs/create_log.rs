@@ -1,8 +1,7 @@
-use crate::{Log, create_log, model::model::SignalMode};
-use diesel::PgConnection;
+use crate::{Log, model::model::SignalMode};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
-    crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Layout, Offset, Rect},
     style::{Color, Style, Stylize},
     symbols,
@@ -10,18 +9,13 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
 };
 use serde::Serialize;
-use tracing::{error, info};
 use tui_prompts::prelude::*;
 
-/* TODO: theres no prompt for selection yet
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-struct CreateLogState<'a> {
-    current_field: LogEntryFocus,
-    coordinates_state: TextState<'a>,
-    frequency_state: TextState<'a>,
-    callsign_state: TextState<'a>,
-}
-*/
+use tui_input::{
+    Input,
+    backend::crossterm::EventHandler,
+};
+
 const LOG_ENTRY_HEADER_STYLE: ratatui::style::Style = Style::new()
     .fg(Color::Rgb(14, 15, 23))
     .bg(Color::Rgb(54, 68, 96));
@@ -83,121 +77,206 @@ impl Widget for ModeSelectField {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct TextField {
-    #[serde(skip)]
-    label: &'static str,
-    value: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct NumberField {
-    #[serde(skip)]
-    label: &'static str,
-    value: Option<f32>,
-}
-#[derive(Debug, Serialize)]
-struct FrequencyField {
-    #[serde(skip)]
-    label: &'static str,
-    value: Option<f32>,
-}
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct CoordinatesField {
     #[serde(skip)]
     label: &'static str,
-    longitude_value: Option<f32>,
-    latitude_value: Option<f32>,
+    #[serde(skip)]
+    latitude_input: Input,
+    #[serde(skip)]
+    longitude_input: Input,
+    /// Which input field is currently focused (true = latitude, false = longitude)
+    #[serde(skip)]
+    latitude_focused: bool,
+    /// Whether this field is focused in the parent form
+    #[serde(skip)]
+    is_focused: bool,
+    /// Whether the latitude input contains a valid value
+    #[serde(skip)]
+    latitude_valid: bool,
+    /// Whether the longitude input contains a valid value
+    #[serde(skip)]
+    longitude_valid: bool,
 }
 
 impl CoordinatesField {
-    const fn new(label: &'static str) -> Self {
+    fn new(label: &'static str) -> Self {
         Self {
             label,
-            longitude_value: Some(0.),
-            latitude_value: Some(0.),
+            latitude_input: Input::from("0.0"),
+            longitude_input: Input::from("0.0"),
+            latitude_focused: true,
+            is_focused: false,
+            latitude_valid: true,
+            longitude_valid: true,
         }
     }
 
-    fn cursor_offset(&self, is_latitude: bool) -> Offset {
-        let x = if is_latitude {
-            self.label.len() + self.latitude_value.unwrap_or(0.).to_string().len() + 4
-        } else {
-            self.label.len() + self.longitude_value.unwrap_or(0.).to_string().len() + 6
-        };
-        Offset { x: x as i32, y: 0 }
+    /// Toggle focus between latitude and longitude fields
+    fn toggle_focus(&mut self) {
+        self.latitude_focused = !self.latitude_focused;
     }
 
-    fn on_key_press(&mut self, event: KeyEvent, is_latitude: bool) {
-        match event.code {
-            KeyCode::Char(c) if c.is_ascii_digit() || c == '.' => {
-                if is_latitude {
-                    let current_value = self.latitude_value.unwrap_or(0.).to_string();
-                    let new_value = format!("{}{}", current_value, c);
-                    self.latitude_value = new_value.parse::<f32>().ok();
-                } else {
-                    let current_value = self.longitude_value.unwrap_or(0.).to_string();
-                    let new_value = format!("{}{}", current_value, c);
-                    self.longitude_value = new_value.parse::<f32>().ok();
-                }
-            }
-            _ => {}
-        }
+    /// Set focus explicitly
+    fn set_focus(&mut self, to_latitude: bool) {
+        self.latitude_focused = to_latitude;
     }
-}
 
-impl NumberField {
-    const fn new(label: &'static str) -> Self {
-        Self {
-            label,
-            value: Some(0.),
-        }
+    /// Validate coordinate inputs and update validation state
+    fn validate(&mut self) {
+        self.latitude_valid = self
+            .latitude_input
+            .value()
+            .parse::<f32>()
+            .map(|lat| (-90.0..=90.0).contains(&lat))
+            .unwrap_or(false);
+
+        self.longitude_valid = self
+            .longitude_input
+            .value()
+            .parse::<f32>()
+            .map(|lon| (-180.0..=180.0).contains(&lon))
+            .unwrap_or(false);
     }
+
+    /// Handle key events for the currently focused input
     fn on_key_press(&mut self, event: KeyEvent) {
-        match event.code {
-            KeyCode::Char(c) if c.is_ascii_digit() || c == '.' => {
-                let current_value = self.value.unwrap_or(0.).to_string();
-                let new_value = format!("{}{}", current_value, c);
-                self.value = new_value.parse::<f32>().ok();
+        use crossterm::event::KeyModifiers;
+
+        // Handle comma to switch from latitude to longitude
+        if event.code == KeyCode::Char(',')
+            && self.latitude_focused {
+                self.set_focus(false);
+                return;
             }
-            KeyCode::Backspace => {
-                if let Some(current_value) = self.value {
-                    let current_str = current_value.to_string();
-                    let new_str = current_str
-                        .trim_end_matches(|c: char| !c.is_ascii_digit())
-                        .to_string();
-                    self.value = new_str.parse::<f32>().ok();
+
+        // Handle Ctrl+Left/Right to switch between lat/lon
+        if event.modifiers.contains(KeyModifiers::CONTROL) {
+            match event.code {
+                KeyCode::Right => {
+                    self.set_focus(false); // Switch to longitude
+                    return;
                 }
+                KeyCode::Left => {
+                    self.set_focus(true); // Switch to latitude
+                    return;
+                }
+                _ => {}
             }
-            _ => {}
+        }
+
+        // Filter input to only allow valid float characters and navigation keys
+        let is_valid_key = matches!(event.code,
+            KeyCode::Char(c) if c.is_ascii_digit() || c == '.' || c == '-')
+            || matches!(
+                event.code,
+                KeyCode::Backspace
+                    | KeyCode::Left
+                    | KeyCode::Right
+                    | KeyCode::Home
+                    | KeyCode::End
+                    | KeyCode::Delete
+            );
+
+        if !is_valid_key {
+            return;
+        }
+
+        // Pass event to the appropriate input field
+        if self.latitude_focused {
+            self.latitude_input
+                .handle_event(&crossterm::event::Event::Key(event));
+            self.validate();
+        } else {
+            self.longitude_input
+                .handle_event(&crossterm::event::Event::Key(event));
+            self.validate();
         }
     }
-    fn increment(&mut self) {
-        self.value = Some(self.value.unwrap_or(0.) + 1.)
+
+    /// Get the parsed latitude value
+    fn get_latitude(&self) -> Result<f32, std::num::ParseFloatError> {
+        self.latitude_input.value().parse::<f32>()
     }
 
-    fn decrement(&mut self) {
-        self.value = Some(self.value.unwrap_or(0.) - 1.)
+    /// Get the parsed longitude value
+    fn get_longitude(&self) -> Result<f32, std::num::ParseFloatError> {
+        self.longitude_input.value().parse::<f32>()
     }
 
+    /// Get cursor offset for rendering
     fn cursor_offset(&self) -> Offset {
-        let x = (self.label.len() + self.value.unwrap_or(0.).to_string().len() + 2) as i32;
-        Offset { x, y: 0 }
+        let label_len = self.label.len() + 2; // "label: "
+
+        if self.latitude_focused {
+            // +1 for opening bracket "["
+            let x = label_len + 1 + self.latitude_input.cursor();
+            Offset { x: x as i32, y: 0 }
+        } else {
+            // Account for "[lat_value], " before longitude, then "[" for longitude
+            let lat_len = self.latitude_input.value().len();
+            let x = label_len + 1 + lat_len + 3 + 1 + self.longitude_input.cursor(); // +1 for "[", +3 for "], ", +1 for "["
+            Offset { x: x as i32, y: 0 }
+        }
     }
 }
 
-impl Widget for NumberField {
+impl Widget for CoordinatesField {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let layout = Layout::horizontal([
             Constraint::Length(self.label.len() as u16 + 2),
             Constraint::Fill(1),
         ]);
         let chunks = layout.split(area);
+
         let label = Line::from_iter([self.label, ": "]).bold();
-        let value = match self.value {
-            Some(v) => Line::from(v.to_string()),
-            None => Line::from("_____"),
+
+        // Priority: validation error (red) > focused (yellow) > normal (white)
+        let lat_style = if !self.latitude_valid {
+            Style::default().fg(Color::Red).bold()
+        } else if self.is_focused && self.latitude_focused {
+            Style::default().fg(Color::Yellow).bold()
+        } else {
+            Style::default().fg(Color::White)
         };
+
+        let lon_style = if !self.longitude_valid {
+            Style::default().fg(Color::Red).bold()
+        } else if self.is_focused && !self.latitude_focused {
+            Style::default().fg(Color::Yellow).bold()
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        // Add visual indicators for focused field
+        let mut spans = vec![];
+
+        if self.is_focused && self.latitude_focused {
+            spans.push(ratatui::text::Span::raw("["));
+        }
+        spans.push(ratatui::text::Span::styled(
+            self.latitude_input.value(),
+            lat_style,
+        ));
+        if self.is_focused && self.latitude_focused {
+            spans.push(ratatui::text::Span::raw("]"));
+        }
+
+        spans.push(ratatui::text::Span::raw(", "));
+
+        if self.is_focused && !self.latitude_focused {
+            spans.push(ratatui::text::Span::raw("["));
+        }
+        spans.push(ratatui::text::Span::styled(
+            self.longitude_input.value(),
+            lon_style,
+        ));
+        if self.is_focused && !self.latitude_focused {
+            spans.push(ratatui::text::Span::raw("]"));
+        }
+
+        let value = Line::from(spans);
+
         label.render(chunks[0], buf);
         value.render(chunks[1], buf);
     }
@@ -209,8 +288,8 @@ pub struct NewLogInputForm {
     #[serde(skip)]
     pub focus: LogEntryFocus,
     pub frequency: f32,
-    pub latitude: f32,
-    pub longitude: f32,
+    #[serde(skip)]
+    pub coordinates_field: CoordinatesField,
     pub callsign: String,
     pub mode: SignalMode,
     pub comment: String,
@@ -229,8 +308,7 @@ impl NewLogInputForm {
         Self {
             focus: LogEntryFocus::default(),
             frequency: 0.0,
-            latitude: 0.0,
-            longitude: 0.0,
+            coordinates_field: CoordinatesField::new("Coordinates"),
             callsign: "____".to_string(),
             mode: SignalMode::AM,
             comment: "______".to_string(),
@@ -246,13 +324,22 @@ impl NewLogInputForm {
     pub fn previous_field(&mut self) {
         self.focus = match self.focus {
             LogEntryFocus::Frequency => LogEntryFocus::RecordingDuration,
-            LogEntryFocus::Latitude => LogEntryFocus::Frequency,
-            LogEntryFocus::Longitude => LogEntryFocus::Latitude,
-            LogEntryFocus::Callsign => LogEntryFocus::Longitude,
+            LogEntryFocus::Coordinates => LogEntryFocus::Frequency,
+            LogEntryFocus::Callsign => LogEntryFocus::Coordinates,
             LogEntryFocus::Mode => LogEntryFocus::Callsign,
             LogEntryFocus::Comment => LogEntryFocus::Mode,
             LogEntryFocus::RecordingDuration => LogEntryFocus::Comment,
         }
+    }
+
+    /// Get the validated latitude value from the coordinates field
+    pub fn latitude(&self) -> Result<f32, std::num::ParseFloatError> {
+        self.coordinates_field.get_latitude()
+    }
+
+    /// Get the validated longitude value from the coordinates field
+    pub fn longitude(&self) -> Result<f32, std::num::ParseFloatError> {
+        self.coordinates_field.get_longitude()
     }
 
     pub fn handle_key_event(&mut self, event: KeyEvent) {
@@ -276,43 +363,9 @@ impl NewLogInputForm {
                     };
                 }
             }
-            LogEntryFocus::Latitude => {
-                if let KeyCode::Char(c) = event.code {
-                    if c.is_ascii_digit() || c == '.' || c == '-' {
-                        let current = self.latitude.to_string();
-                        let new_val = format!("{}{}", current, c);
-                        self.latitude = new_val.parse::<f32>().unwrap_or_default();
-                    }
-                } else if event.code == KeyCode::Backspace
-                    && let current = self.latitude
-                {
-                    let mut current_str = current.to_string();
-                    current_str.pop();
-                    self.latitude = if current_str.is_empty() {
-                        0.0
-                    } else {
-                        current_str.parse::<f32>().unwrap_or_default()
-                    };
-                }
-            }
-            LogEntryFocus::Longitude => {
-                if let KeyCode::Char(c) = event.code {
-                    if c.is_ascii_digit() || c == '.' || c == '-' {
-                        let current = self.longitude.to_string();
-                        let new_val = format!("{}{}", current, c);
-                        self.longitude = new_val.parse::<f32>().unwrap_or_default();
-                    }
-                } else if event.code == KeyCode::Backspace
-                    && let current = self.longitude
-                {
-                    let mut current_str = current.to_string();
-                    current_str.pop();
-                    self.longitude = if current_str.is_empty() {
-                        0.0
-                    } else {
-                        current_str.parse::<f32>().unwrap_or_default()
-                    };
-                }
+            LogEntryFocus::Coordinates => {
+                // Handle coordinates field using tui_input
+                self.coordinates_field.on_key_press(event);
             }
             LogEntryFocus::Callsign => {
                 if let KeyCode::Char(c) = event.code {
@@ -414,17 +467,21 @@ impl NewLogInputForm {
     pub fn get_cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
         let field_y_offset = match self.focus {
             LogEntryFocus::Frequency => 1,
-            LogEntryFocus::Latitude => 2,
-            LogEntryFocus::Longitude => 3,
-            LogEntryFocus::Callsign => 4,
-            LogEntryFocus::Mode => 5,
-            LogEntryFocus::Comment => 6,
-            LogEntryFocus::RecordingDuration => 7,
+            LogEntryFocus::Coordinates => 2,
+            LogEntryFocus::Callsign => 3,
+            LogEntryFocus::Mode => 4,
+            LogEntryFocus::Comment => 5,
+            LogEntryFocus::RecordingDuration => 6,
         };
+
+        if matches!(self.focus, LogEntryFocus::Coordinates) {
+            let offset = self.coordinates_field.cursor_offset();
+            return Some((area.x + offset.x as u16, area.y + field_y_offset));
+        }
+
         let label_len = match self.focus {
             LogEntryFocus::Frequency => "Frequency: ".len(),
-            LogEntryFocus::Latitude => "Latitude: ".len(),
-            LogEntryFocus::Longitude => "Longitude: ".len(),
+            LogEntryFocus::Coordinates => "Coordinates: ".len(),
             LogEntryFocus::Callsign => "Callsign: ".len(),
             LogEntryFocus::Mode => "Mode: ".len(),
             LogEntryFocus::Comment => "Comment: ".len(),
@@ -432,8 +489,7 @@ impl NewLogInputForm {
         };
         let value_len = match self.focus {
             LogEntryFocus::Frequency => self.frequency.to_string().len(),
-            LogEntryFocus::Latitude => self.latitude.to_string().len(),
-            LogEntryFocus::Longitude => self.longitude.to_string().len(),
+            LogEntryFocus::Coordinates => 0, // Handled above
             LogEntryFocus::Callsign => self.callsign.len(),
             LogEntryFocus::Mode => 0, // Mode doesn't show cursor
             LogEntryFocus::Comment => self.comment.len(),
@@ -450,8 +506,7 @@ impl NewLogInputForm {
 enum LogEntryFocus {
     #[default]
     Frequency,
-    Latitude,
-    Longitude,
+    Coordinates,
     Callsign,
     Mode,
     Comment,
@@ -461,9 +516,8 @@ enum LogEntryFocus {
 impl LogEntryFocus {
     const fn next(&self) -> Self {
         match self {
-            LogEntryFocus::Frequency => LogEntryFocus::Latitude,
-            LogEntryFocus::Latitude => LogEntryFocus::Longitude,
-            LogEntryFocus::Longitude => LogEntryFocus::Callsign,
+            LogEntryFocus::Frequency => LogEntryFocus::Coordinates,
+            LogEntryFocus::Coordinates => LogEntryFocus::Callsign,
             LogEntryFocus::Callsign => LogEntryFocus::Mode,
             LogEntryFocus::Mode => LogEntryFocus::Comment,
             LogEntryFocus::Comment => LogEntryFocus::RecordingDuration,
@@ -482,8 +536,7 @@ pub fn render_create_log_form(form: &NewLogInputForm, area: Rect, buf: &mut Buff
     let layout = Layout::vertical([
         Constraint::Length(3), // Header
         Constraint::Length(1), // Frequency
-        Constraint::Length(1), // Latitude
-        Constraint::Length(1), // Longitude
+        Constraint::Length(1), // Coordinates
         Constraint::Length(1), // Callsign
         Constraint::Length(1), // Mode
         Constraint::Length(1), // Comment
@@ -502,43 +555,45 @@ pub fn render_create_log_form(form: &NewLogInputForm, area: Rect, buf: &mut Buff
     };
     let freq_field = format!("Frequency: {} MHz", form.frequency);
 
-    let lat_field = format!("Latitude: {} °", form.latitude);
-
     Paragraph::new(Line::from(freq_field))
         .style(field_style(form.focus == LogEntryFocus::Frequency))
         .render(chunks[1], buf);
 
-    Paragraph::new(Line::from(lat_field))
-        .style(field_style(form.focus == LogEntryFocus::Latitude))
-        .render(chunks[2], buf);
+    // Render the CoordinatesField widget
+    // We need to clone it because Widget::render takes ownership
+    let coord_field = CoordinatesField {
+        label: form.coordinates_field.label,
+        latitude_input: form.coordinates_field.latitude_input.clone(),
+        longitude_input: form.coordinates_field.longitude_input.clone(),
+        latitude_focused: form.coordinates_field.latitude_focused,
+        is_focused: form.focus == LogEntryFocus::Coordinates,
+        latitude_valid: form.coordinates_field.latitude_valid,
+        longitude_valid: form.coordinates_field.longitude_valid,
+    };
 
-    let lon_field = format!("Longitude: {} °", form.longitude);
-
-    Paragraph::new(Line::from(lon_field))
-        .style(field_style(form.focus == LogEntryFocus::Longitude))
-        .render(chunks[3], buf);
+    coord_field.render(chunks[2], buf);
 
     let callsign_field = format!("Callsign: {}", form.callsign);
 
     Paragraph::new(Line::from(callsign_field))
         .style(field_style(form.focus == LogEntryFocus::Callsign))
-        .render(chunks[4], buf);
+        .render(chunks[3], buf);
 
     let mode_field = format!("Mode: {:?}", form.mode);
 
     Paragraph::new(Line::from(mode_field))
         .style(field_style(form.focus == LogEntryFocus::Mode))
-        .render(chunks[5], buf);
+        .render(chunks[4], buf);
 
     let comment_field = format!("Comment: {}", form.comment);
 
     Paragraph::new(Line::from(comment_field))
         .style(field_style(form.focus == LogEntryFocus::Comment))
-        .render(chunks[6], buf);
+        .render(chunks[5], buf);
 
     let duration_field = format!("Recording duration: {} seconds", form.recording_duration);
 
     Paragraph::new(Line::from(duration_field))
         .style(field_style(form.focus == LogEntryFocus::RecordingDuration))
-        .render(chunks[7], buf);
+        .render(chunks[6], buf);
 }

@@ -1,12 +1,14 @@
 pub mod hackrf;
 pub mod stream;
-use soapysdr::Device;
-use tokio::sync::mpsc;
+
+mod file;
 
 const CHUNK_SIZE: usize = 8192;
 const MAX_CHUNKS: usize = 1000;
 
-pub struct Source {
+pub trait Source {}
+
+/*pub struct Source {
     device: Device,
     rx: mpsc::Receiver<Vec<u8>>,
     antenna: Option<String>,
@@ -24,3 +26,4 @@ impl Source {
         }
     }
 }
+*/

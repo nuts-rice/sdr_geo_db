@@ -1,5 +1,5 @@
 pub mod create_log;
-//pub mod spectrum_view;
+pub mod spectrum_view;
 //pub mod view_logs;
 use ratatui::{
     buffer::Buffer,
@@ -72,10 +72,13 @@ impl SelectedTab {
             .block(self.block())
             .render(area, buf);
     }
-    pub fn render_spectrum_viewer_tab(self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("Look! I'm different than others!")
-            .block(self.block())
-            .render(area, buf);
+    pub fn render_spectrum_viewer_tab(
+        self,
+        state: &spectrum_view::SpectrumViewerState,
+        area: Rect,
+        buf: &mut Buffer,
+    ) {
+        spectrum_view::render_spectrum_viewer(state, area, buf);
     }
 }
 
@@ -91,7 +94,9 @@ impl Widget for SelectedTab {
                     .render(area, buf);
             }
             SelectedTab::SpectrumViewer => {
-                self.render_spectrum_viewer_tab(area, buf);
+                Paragraph::new("Spectrum Viewer (use render_spectrum_viewer_tab)")
+                    .block(self.block())
+                    .render(area, buf);
             }
         }
     }

@@ -3,22 +3,23 @@ use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Borders, Paragraph};
 use sdr_db::create_log;
-use sdr_db::model::model::{render_log, render_new_log};
-use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm};
-use sdr_db::{Log, NewLog};
+use sdr_db::model::model::render_log;
+use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm, spectrum_view::SpectrumViewerState};
+use sdr_db::Log;
 
 use clap::Parser;
 use tracing::{error, info};
 
 use color_eyre::Result;
+use crossterm::event::{Event, KeyCode};
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     style::Stylize,
     text::{Line, Text},
     widgets::{Block, Tabs, Widget},
 };
+
 use strum::IntoEnumIterator;
 
 #[derive(Parser, Debug)]
@@ -61,6 +62,7 @@ struct App {
     state: AppState,
     selected_tab: SelectedTab,
     new_log_form: NewLogInputForm,
+    spectrum_viewer_state: SpectrumViewerState,
 }
 
 #[derive(Default, Clone, Eq, PartialEq)]
@@ -76,6 +78,7 @@ impl App {
             state: AppState::Running,
             selected_tab: SelectedTab::CreateLog,
             new_log_form: NewLogInputForm::default(),
+            spectrum_viewer_state: SpectrumViewerState::default(),
         }
     }
     //TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
@@ -103,16 +106,33 @@ impl App {
 
     fn submit_log_entry(&mut self, conn: &mut PgConnection) {
         let form = &self.new_log_form;
+
+        // Get validated coordinates
+        let latitude = match form.latitude() {
+            Ok(lat) => lat,
+            Err(_) => {
+                error!("Invalid latitude value");
+                return;
+            }
+        };
+        let longitude = match form.longitude() {
+            Ok(lon) => lon,
+            Err(_) => {
+                error!("Invalid longitude value");
+                return;
+            }
+        };
+
         if form.frequency > 0.0
-            && form.latitude.abs() <= 90.0
-            && form.longitude.abs() <= 180.0
+            && latitude.abs() <= 90.0
+            && longitude.abs() <= 180.0
             && form.recording_duration >= 0.
         {
             match create_log(
                 conn,
                 form.frequency,
-                form.latitude,
-                form.longitude,
+                latitude,
+                longitude,
                 form.callsign.to_string(),
                 form.mode,
                 form.comment.clone(),
@@ -130,8 +150,8 @@ impl App {
     }
 
     fn handle_events(&mut self, conn: &mut PgConnection) -> std::io::Result<()> {
-        if let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
+        if let Event::Key(key) = crossterm::event::read()?
+            && key.kind == crossterm::event::KeyEventKind::Press
         {
             // If popup is showing, any key dismisses it
             if self.new_log_form.created_log.is_some() {
@@ -165,7 +185,10 @@ impl App {
                         self.new_log_form = NewLogInputForm::default();
                     }
                     KeyCode::Tab => {
-                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                        if key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::SHIFT)
+                        {
                             self.new_log_form.previous_field();
                         } else {
                             self.new_log_form.next_field();
@@ -174,6 +197,18 @@ impl App {
                     _ => {
                         self.new_log_form.handle_key_event(key);
                     }
+                },
+                SelectedTab::SpectrumViewer => match key.code {
+                    KeyCode::Up => {
+                        self.spectrum_viewer_state.increase_frequency();
+                    }
+                    KeyCode::Down => {
+                        self.spectrum_viewer_state.decrease_frequency();
+                    }
+                    KeyCode::Tab => {
+                        self.spectrum_viewer_state.toggle_source();
+                    }
+                    _ => {}
                 },
                 _ => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => {
@@ -256,8 +291,11 @@ impl Widget for &App {
                 self.selected_tab.render_view_logs_tab(inner_area, buf);
             }
             SelectedTab::SpectrumViewer => {
-                self.selected_tab
-                    .render_spectrum_viewer_tab(inner_area, buf);
+                self.selected_tab.render_spectrum_viewer_tab(
+                    &self.spectrum_viewer_state,
+                    inner_area,
+                    buf,
+                );
             }
         }
         render_footer(footer_area, buf);
