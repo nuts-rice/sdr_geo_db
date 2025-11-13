@@ -1,12 +1,30 @@
+use tokio::sync::mpsc;
+
 pub mod hackrf;
 pub mod stream;
 
-mod file;
+pub mod file;
+pub mod spectrum;
 
 const CHUNK_SIZE: usize = 8192;
 const MAX_CHUNKS: usize = 1000;
 
-pub trait Source {}
+pub enum SourceError {
+    StartError(String),
+    StopError(String),
+    DeviceError(String),
+    StreamError(String),
+}
+
+
+pub trait Source {
+    fn start(&mut self) -> Result<(), SourceError>;
+    fn stop(&mut self) -> Result<(), SourceError>;
+    fn get_receiver(&mut self) -> &mut mpsc::Receiver<Vec<u8>>;
+    fn get_device_info(&self) -> String;
+
+
+}
 
 /*pub struct Source {
     device: Device,
