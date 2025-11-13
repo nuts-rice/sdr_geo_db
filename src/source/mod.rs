@@ -16,14 +16,11 @@ pub enum SourceError {
     StreamError(String),
 }
 
-
 pub trait Source {
     fn start(&mut self) -> Result<(), SourceError>;
     fn stop(&mut self) -> Result<(), SourceError>;
     fn get_receiver(&mut self) -> &mut mpsc::Receiver<Vec<u8>>;
     fn get_device_info(&self) -> String;
-
-
 }
 
 /*pub struct Source {

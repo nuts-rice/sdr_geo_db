@@ -1,4 +1,4 @@
-use crate::source::{spectrum::SpectrumDataSource, Source, SourceError};
+use crate::source::{Source, SourceError, spectrum::SpectrumDataSource};
 use tokio::sync::mpsc;
 enum ValidFileExtension {
     WAV,
@@ -16,7 +16,7 @@ impl Source for FileSource {
     fn start(&mut self) -> Result<(), SourceError> {
         Ok(())
     }
-    
+
     fn stop(&mut self) -> Result<(), SourceError> {
         Ok(())
     }
@@ -26,11 +26,14 @@ impl Source for FileSource {
     fn get_device_info(&self) -> String {
         todo!()
     }
-
 }
 
 impl SpectrumDataSource for FileSource {
-    fn get_spectrum_data(&mut self, _center_freq: f64, _span: f64) -> Result<Vec<(f64, f64)>, SourceError> {
+    fn get_spectrum_data(
+        &mut self,
+        _center_freq: f64,
+        _span: f64,
+    ) -> Result<Vec<(f64, f64)>, SourceError> {
         todo!("FileSource is for audio files, use FileSpectrum for spectrum data")
     }
 
@@ -118,7 +121,9 @@ impl FileSpectrum {
         }
 
         if data.is_empty() {
-            return Err(SourceError::StreamError("No data found in file".to_string()));
+            return Err(SourceError::StreamError(
+                "No data found in file".to_string(),
+            ));
         }
 
         // Sort by frequency

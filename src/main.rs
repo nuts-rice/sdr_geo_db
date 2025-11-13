@@ -2,10 +2,10 @@ use diesel::{Connection, PgConnection};
 use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Borders, Paragraph};
+use sdr_db::Log;
 use sdr_db::create_log;
 use sdr_db::model::model::render_log;
 use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm, spectrum_view::SpectrumViewerState};
-use sdr_db::Log;
 
 use clap::Parser;
 use tracing::{error, info};
@@ -207,6 +207,26 @@ impl App {
                     }
                     KeyCode::Tab => {
                         self.spectrum_viewer_state.toggle_source();
+                    }
+                    KeyCode::Char('l') | KeyCode::Char('L') => {
+                        if key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::SHIFT)
+                        {
+                            self.spectrum_viewer_state.decrease_lna_gain();
+                        } else {
+                            self.spectrum_viewer_state.increase_lna_gain();
+                        }
+                    }
+                    KeyCode::Char('v') | KeyCode::Char('V') => {
+                        if key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::SHIFT)
+                        {
+                            self.spectrum_viewer_state.decrease_vga_gain();
+                        } else {
+                            self.spectrum_viewer_state.increase_vga_gain();
+                        }
                     }
                     _ => {}
                 },

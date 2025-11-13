@@ -11,10 +11,7 @@ use ratatui::{
 use serde::Serialize;
 use tui_prompts::prelude::*;
 
-use tui_input::{
-    Input,
-    backend::crossterm::EventHandler,
-};
+use tui_input::{Input, backend::crossterm::EventHandler};
 
 const LOG_ENTRY_HEADER_STYLE: ratatui::style::Style = Style::new()
     .fg(Color::Rgb(14, 15, 23))
@@ -144,11 +141,10 @@ impl CoordinatesField {
         use crossterm::event::KeyModifiers;
 
         // Handle comma to switch from latitude to longitude
-        if event.code == KeyCode::Char(',')
-            && self.latitude_focused {
-                self.set_focus(false);
-                return;
-            }
+        if event.code == KeyCode::Char(',') && self.latitude_focused {
+            self.set_focus(false);
+            return;
+        }
 
         // Handle Ctrl+Left/Right to switch between lat/lon
         if event.modifiers.contains(KeyModifiers::CONTROL) {

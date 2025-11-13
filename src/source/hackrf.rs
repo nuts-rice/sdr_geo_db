@@ -1,7 +1,7 @@
 use soapysdr::RxStream;
 use tokio::sync::mpsc;
 
-use crate::source::{SourceError, Source};
+use crate::source::{Source, SourceError};
 
 pub struct HackRFSource {
     rx_stream: RxStream<f32>,
@@ -11,7 +11,7 @@ impl Source for HackRFSource {
     fn start(&mut self) -> Result<(), SourceError> {
         Ok(())
     }
-    
+
     fn stop(&mut self) -> Result<(), SourceError> {
         Ok(())
     }
@@ -21,7 +21,6 @@ impl Source for HackRFSource {
     fn get_device_info(&self) -> String {
         todo!()
     }
-    
 }
 
 impl HackRFSource {}
