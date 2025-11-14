@@ -1,5 +1,7 @@
 use crate::source::{Source, SourceError, spectrum::SpectrumDataSource};
+use num_complex::Complex;
 use tokio::sync::mpsc;
+
 enum ValidFileExtension {
     WAV,
     MP3,
@@ -12,12 +14,17 @@ struct FileSource {
     file_size_bytes: u64,
 }
 
+#[async_trait::async_trait]
 impl Source for FileSource {
-    fn start(&mut self) -> Result<(), SourceError> {
+    async fn next_samples(&mut self) -> Result<Option<Vec<Complex<f32>>>, SourceError> {
+        todo!()
+    }
+
+    async fn start(&mut self) -> Result<(), SourceError> {
         Ok(())
     }
 
-    fn stop(&mut self) -> Result<(), SourceError> {
+    async fn stop(&mut self) -> Result<(), SourceError> {
         Ok(())
     }
     fn get_receiver(&mut self) -> &mut mpsc::Receiver<Vec<u8>> {
@@ -25,6 +32,10 @@ impl Source for FileSource {
     }
     fn get_device_info(&self) -> String {
         todo!()
+    }
+
+    fn get_center_frequency(&self) -> f32 {
+        0.0
     }
 }
 
