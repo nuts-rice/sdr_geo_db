@@ -150,100 +150,115 @@ impl App {
     }
 
     fn handle_events(&mut self, conn: &mut PgConnection) -> std::io::Result<()> {
-        if let Event::Key(key) = crossterm::event::read()?
-            && key.kind == crossterm::event::KeyEventKind::Press
-        {
-            // If popup is showing, any key dismisses it
-            if self.new_log_form.created_log.is_some() {
-                self.new_log_form = NewLogInputForm::default();
-                return Ok(());
-            }
+        // Use poll with timeout for continuous animation on spectrum viewer
+        let timeout = if self.selected_tab == SelectedTab::SpectrumViewer {
+            std::time::Duration::from_millis(50) // 20 FPS animation
+        } else {
+            std::time::Duration::from_millis(100)
+        };
 
-            match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => {
-                    //       if self.selected_tab != SelectedTab::CreateLog =>
-                    //   {
-                    self.quit();
+        if crossterm::event::poll(timeout)? {
+            if let Event::Key(key) = crossterm::event::read()?
+                && key.kind == crossterm::event::KeyEventKind::Press
+            {
+                // If popup is showing, any key dismisses it
+                if self.new_log_form.created_log.is_some() {
+                    self.new_log_form = NewLogInputForm::default();
                     return Ok(());
                 }
-                KeyCode::Char('l') => {
-                    self.next_tab();
-                    return Ok(());
-                }
-                KeyCode::Char('h') => {
-                    self.previous_tab();
-                    return Ok(());
-                }
-                _ => {}
-            }
-            match &self.selected_tab {
-                SelectedTab::CreateLog => match key.code {
-                    KeyCode::Enter => {
-                        self.submit_log_entry(conn);
-                    }
-                    KeyCode::Esc => {
-                        self.new_log_form = NewLogInputForm::default();
-                    }
-                    KeyCode::Tab => {
-                        if key
-                            .modifiers
-                            .contains(crossterm::event::KeyModifiers::SHIFT)
-                        {
-                            self.new_log_form.previous_field();
-                        } else {
-                            self.new_log_form.next_field();
-                        }
-                    }
-                    _ => {
-                        self.new_log_form.handle_key_event(key);
-                    }
-                },
-                SelectedTab::SpectrumViewer => match key.code {
-                    KeyCode::Up => {
-                        self.spectrum_viewer_state.increase_frequency();
-                    }
-                    KeyCode::Down => {
-                        self.spectrum_viewer_state.decrease_frequency();
-                    }
-                    KeyCode::Tab => {
-                        self.spectrum_viewer_state.toggle_source();
-                    }
-                    KeyCode::Char('l') | KeyCode::Char('L') => {
-                        if key
-                            .modifiers
-                            .contains(crossterm::event::KeyModifiers::SHIFT)
-                        {
-                            self.spectrum_viewer_state.decrease_lna_gain();
-                        } else {
-                            self.spectrum_viewer_state.increase_lna_gain();
-                        }
-                    }
-                    KeyCode::Char('v') | KeyCode::Char('V') => {
-                        if key
-                            .modifiers
-                            .contains(crossterm::event::KeyModifiers::SHIFT)
-                        {
-                            self.spectrum_viewer_state.decrease_vga_gain();
-                        } else {
-                            self.spectrum_viewer_state.increase_vga_gain();
-                        }
-                    }
-                    _ => {}
-                },
-                _ => match key.code {
+
+                match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => {
+                        //       if self.selected_tab != SelectedTab::CreateLog =>
+                        //   {
                         self.quit();
+                        return Ok(());
                     }
                     KeyCode::Char('l') => {
                         self.next_tab();
+                        return Ok(());
                     }
                     KeyCode::Char('h') => {
                         self.previous_tab();
+                        return Ok(());
                     }
                     _ => {}
-                },
+                }
+                match &self.selected_tab {
+                    SelectedTab::CreateLog => match key.code {
+                        KeyCode::Enter => {
+                            self.submit_log_entry(conn);
+                        }
+                        KeyCode::Esc => {
+                            self.new_log_form = NewLogInputForm::default();
+                        }
+                        KeyCode::Tab => {
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::SHIFT)
+                            {
+                                self.new_log_form.previous_field();
+                            } else {
+                                self.new_log_form.next_field();
+                            }
+                        }
+                        _ => {
+                            self.new_log_form.handle_key_event(key);
+                        }
+                    },
+                    SelectedTab::SpectrumViewer => match key.code {
+                        KeyCode::Up => {
+                            self.spectrum_viewer_state.increase_frequency();
+                        }
+                        KeyCode::Down => {
+                            self.spectrum_viewer_state.decrease_frequency();
+                        }
+                        KeyCode::Tab => {
+                            self.spectrum_viewer_state.toggle_source();
+                        }
+                        KeyCode::Char('l') | KeyCode::Char('L') => {
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::SHIFT)
+                            {
+                                self.spectrum_viewer_state.decrease_lna_gain();
+                            } else {
+                                self.spectrum_viewer_state.increase_lna_gain();
+                            }
+                        }
+                        KeyCode::Char('v') | KeyCode::Char('V') => {
+                            if key
+                                .modifiers
+                                .contains(crossterm::event::KeyModifiers::SHIFT)
+                            {
+                                self.spectrum_viewer_state.decrease_vga_gain();
+                            } else {
+                                self.spectrum_viewer_state.increase_vga_gain();
+                            }
+                        }
+                        _ => {}
+                    },
+                    _ => match key.code {
+                        KeyCode::Char('q') | KeyCode::Esc => {
+                            self.quit();
+                        }
+                        KeyCode::Char('l') => {
+                            self.next_tab();
+                        }
+                        KeyCode::Char('h') => {
+                            self.previous_tab();
+                        }
+                        _ => {}
+                    },
+                }
             }
         }
+
+        // Update spectrum viewer animation when on that tab
+        if self.selected_tab == SelectedTab::SpectrumViewer {
+            self.spectrum_viewer_state.tick(0.05); // Advance time by 0.05 radians
+        }
+
         Ok(())
     }
 

@@ -49,6 +49,9 @@ pub struct SpectrumViewerState {
 
     pub lna_gain: usize,
     pub vga_gain: usize,
+
+    /// Time parameter for animated signal (in radians)
+    pub time: f64,
 }
 
 impl Default for SpectrumViewerState {
@@ -61,6 +64,7 @@ impl Default for SpectrumViewerState {
             spectrum_data: Vec::new(),
             lna_gain: 0,
             vga_gain: 0,
+            time: 0.0,
         };
         state.generate_sample_data();
         state
@@ -157,7 +161,7 @@ impl SpectrumViewerState {
         )
     }
 
-    /// Generate sample spectrum data for testing
+    /// Generate sample spectrum data for testing with time-varying signals
     /// TODO: Replace with actual SDR data from HackRF or file
     fn generate_sample_data(&mut self) {
         let (freq_min, freq_max) = self.frequency_range();
@@ -167,26 +171,73 @@ impl SpectrumViewerState {
 
         self.spectrum_data.clear();
 
+        // Calculate moving signal positions based on time
+        let signal1_offset = (self.time * 0.5).sin() * self.span * 0.3;
+        let signal2_offset = (self.time * 0.3 + 1.5).cos() * self.span * 0.2;
+
+        // Amplitude modulation
+        let amplitude_mod1 = 0.7 + 0.3 * (self.time * 0.8).sin();
+        let amplitude_mod2 = 0.6 + 0.4 * (self.time * 0.4).cos();
+
         // Generate noise floor around -70 dBm with some variation
         for i in 0..num_points {
             let freq = freq_min + (i as f64 * step);
             let noise_base = -70.0;
-            let noise_variation = ((freq / 1e5).sin() * 5.0) + ((freq / 2e5).cos() * 3.0);
+
+            // Time-varying noise floor
+            let noise_variation = ((freq / 1e5).sin() * 5.0)
+                + ((freq / 2e5).cos() * 3.0)
+                + (self.time * 2.0).sin() * 2.0;
             let noise_adjusted = noise_variation + gain;
 
-            // Add a prominent signal peak near center
-            let signal_peak = if (freq - self.center_frequency).abs() < 50e3 {
-                let distance = (freq - self.center_frequency).abs();
-
-                20.0 * (1.0 - distance / 50e3)
+            // Primary signal peak that moves with time
+            let signal1_center = self.center_frequency + signal1_offset;
+            let signal1_peak = if (freq - signal1_center).abs() < 50e3 {
+                let distance = (freq - signal1_center).abs();
+                20.0 * amplitude_mod1 * (1.0 - distance / 50e3)
             } else {
                 0.0
             };
-            // Apply gain to base noise and signal, then cap at 0 dBm (saturation)
-            let power = (noise_base + noise_adjusted + signal_peak).min(0.0);
+
+            // Secondary signal peak (narrower, weaker, different movement)
+            let signal2_center = self.center_frequency + signal2_offset;
+            let signal2_peak = if (freq - signal2_center).abs() < 30e3 {
+                let distance = (freq - signal2_center).abs();
+                15.0 * amplitude_mod2 * (1.0 - distance / 30e3)
+            } else {
+                0.0
+            };
+
+            // Intermittent third signal (appears and disappears)
+            let signal3_visibility = ((self.time * 0.6).sin() + 1.0) / 2.0;
+            let signal3_offset = self.span * 0.25;
+            let signal3_peak = if (freq - (self.center_frequency - signal3_offset)).abs() < 20e3
+                && signal3_visibility > 0.3
+            {
+                let distance = (freq - (self.center_frequency - signal3_offset)).abs();
+                12.0 * signal3_visibility * (1.0 - distance / 20e3)
+            } else {
+                0.0
+            };
+
+            // Apply gain to base noise and signals, then cap at 0 dBm (saturation)
+            let power =
+                (noise_base + noise_adjusted + signal1_peak + signal2_peak + signal3_peak).min(0.0);
 
             self.spectrum_data.push((freq, power));
         }
+    }
+
+    /// Advance time for animated signals
+    pub fn tick(&mut self, delta_time: f64) {
+        self.time += delta_time;
+        self.generate_sample_data();
+    }
+
+    /// Reset time parameter
+    pub fn reset_time(&mut self) {
+        self.time = 0.0;
+        self.generate_sample_data();
     }
 
     /// Load spectrum data from external source

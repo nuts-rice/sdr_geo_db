@@ -63,6 +63,10 @@ impl SpectrumDataSource for FileSource {
     fn is_live(&self) -> bool {
         false
     }
+
+    fn get_tick_interval_hz(&self) -> f64 {
+        1_000_000.0 // 1 MHz tick interval
+    }
 }
 
 pub struct FileSpectrum {
@@ -197,5 +201,9 @@ impl SpectrumDataSource for FileSpectrum {
 
     fn is_live(&self) -> bool {
         false
+    }
+
+    fn get_tick_interval_hz(&self) -> f64 {
+        1_000_000.0 // 1 MHz tick interval
     }
 }

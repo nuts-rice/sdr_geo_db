@@ -26,6 +26,8 @@ pub trait SpectrumDataSource {
     /// For file sources, this may have no effect
     fn set_center_frequency(&mut self, freq: f64) -> Result<(), SourceError>;
 
+    fn get_tick_interval_hz(&self) -> f64;
+
     /// Get the valid frequency range for this source
     /// Returns (min_freq_hz, max_freq_hz)
     fn get_frequency_range(&self) -> (f64, f64);
