@@ -1,16 +1,77 @@
 use std::{cell::RefCell, io, rc::Rc};
 
 use ratatui::{
-    layout::Alignment,
-    style::{Color, Stylize},
+    layout::{Alignment, Constraint, Direction, Layout},
+    style::{Color, Stylize, Modifier, Style },
+    text::{Line, Span},
     widgets::{Block, BorderType, Paragraph},
     Frame, Terminal,
 };
 
 use ratzilla::{
-    event::{KeyCode, KeyEvent},
+    event::{KeyCode, KeyEvent, },
     DomBackend, WebRenderer,
 };
+
+use sdr_db::{LogFormData, SignalMode};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FormField {
+    Frequency,
+    Latitude,
+    Longitude,
+    Callsign,
+    Mode, 
+    Comment, 
+    RecordingDuration,
+}
+
+impl Default for FormField {
+    fn default() -> Self {
+        FormField::Frequency
+    }
+}
+
+impl FormField {
+    fn label(&self) -> &str {
+        match self {
+            FormField::Frequency => "Frequency (MHz):",
+            FormField::Latitude => "Latitude:",
+            FormField::Longitude => "Longitude:",
+            FormField::Callsign => "Callsign:",
+            FormField::Mode => "Mode:",
+            FormField::Comment => "Comment:",
+            FormField::RecordingDuration => "Recording Duration (seconds):",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            FormField::Frequency => FormField::Latitude,
+            FormField::Latitude => FormField::Longitude,
+            FormField::Longitude => FormField::Callsign,
+            FormField::Callsign => FormField::Mode,
+            FormField::Mode => FormField::Comment,
+            FormField::Comment => FormField::RecordingDuration,
+            FormField::RecordingDuration => FormField::Frequency,
+        }
+    }
+
+    fn previous(&self) -> Self {
+        match self {
+            FormField::Frequency => FormField::RecordingDuration,
+            FormField::Latitude => FormField::Frequency,
+            FormField::Longitude => FormField::Latitude,
+            FormField::Callsign => FormField::Longitude,
+            FormField::Mode => FormField::Callsign,
+            FormField::Comment => FormField::Mode,
+            FormField::RecordingDuration => FormField::Comment,
+        }
+    }
+
+}
+
+
 
 fn main() -> io::Result<()> {
     let backend = DomBackend::new()?;
@@ -33,38 +94,42 @@ fn main() -> io::Result<()> {
 
 #[derive(Default)]
 struct App {
-    counter: RefCell<u8>,
+    form_data: RefCell<LogFormData>,
+    frequency_input: RefCell<String>,
+    latitude_input: RefCell<String>,
+    longitude_input: RefCell<String>,
+    callsign_input: RefCell<String>,
+    mode_input: RefCell<SignalMode>,
+    comment_input: RefCell<String>,
+    duration_input: RefCell<String>,
+    selected_field: RefCell<FormField>,
+    state_message: RefCell<Option<String>>,
 }
 
 impl App {
     fn render(&self, frame: &mut Frame) {
-        let counter = self.counter.borrow();
-        let block = Block::bordered()
-            .title("sdr_db_website")
-            .title_alignment(Alignment::Center)
-            .border_type(BorderType::Rounded);
-
-        let text = format!(
-            "This is a Ratzilla template.\n\
-             Press left and right to increment and decrement the counter respectively.\n\
-             Counter: {counter}",
-        );
-
-        let paragraph = Paragraph::new(text)
-            .block(block)
-            .fg(Color::White)
-            .bg(Color::Black)
-            .centered();
-
-        frame.render_widget(paragraph, frame.area());
+        todo!()
     }
 
     fn handle_events(&self, key_event: KeyEvent) {
-        let mut counter = self.counter.borrow_mut();
         match key_event.code {
-            KeyCode::Left => *counter = counter.saturating_sub(1),
-            KeyCode::Right => *counter = counter.saturating_add(1),
+            KeyCode::Tab => {
+                let mut selected = self.selected_field.borrow_mut();
+                *selected =  if key_event.shift          {
+                    selected.previous()
+                } else {
+                    selected.next()
+                };
+
+            }
+            KeyCode::Enter => {
+                self.submit_form();
+            }
             _ => {}
         }
+    }
+
+    fn submit_form(&self) {
+        todo!()
     }
 }

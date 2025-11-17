@@ -5,13 +5,19 @@ use diesel::prelude::*;
 use serde::Serialize;
 
 //Frequency is in MHz
-#[derive(Serialize, Debug, Clone, Copy)]
+#[derive(Serialize, serde::Deserialize, Debug, Clone, Copy)]
 pub enum SignalMode {
     FM,
     AM,
     USB,
     LSB,
     CW,
+}
+
+impl Default for SignalMode {
+    fn default() -> Self {
+        SignalMode::FM
+    }
 }
 
 /// Database representation of an SDR measurement log entry

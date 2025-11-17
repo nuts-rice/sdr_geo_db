@@ -2,14 +2,19 @@
 use diesel::prelude::*;
 
 pub mod error;
+pub mod form;
 pub mod model;
 #[cfg(feature = "db")]
 pub mod schema;
+#[cfg(any(feature = "sdr", feature = "native-ui"))]
 pub mod source;
+#[cfg(feature = "db")]
 pub mod spatial;
+#[cfg(feature = "native-ui")]
 pub mod tabs;
 
 pub use error::{DatabaseError, ValidationError};
+pub use form::LogFormData;
 pub use model::{Log, NewLog, model::SignalMode};
 
 #[cfg(feature = "db")]
