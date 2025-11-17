@@ -1,7 +1,9 @@
+#[cfg(feature = "db")]
 use diesel::prelude::*;
 
 pub mod error;
 pub mod model;
+#[cfg(feature = "db")]
 pub mod schema;
 pub mod source;
 pub mod spatial;
@@ -9,6 +11,8 @@ pub mod tabs;
 
 pub use error::{DatabaseError, ValidationError};
 pub use model::{Log, NewLog, model::SignalMode};
+
+#[cfg(feature = "db")]
 pub fn create_log(
     conn: &mut PgConnection,
     frequency: f32,
@@ -38,6 +42,7 @@ pub fn create_log(
         .get_result(conn)
 }
 
+#[cfg(feature = "db")]
 pub fn get_logs(conn: &mut PgConnection, limit: i64) -> Result<Vec<Log>, diesel::result::Error> {
     use crate::schema::logs::dsl::*;
 
@@ -47,6 +52,7 @@ pub fn get_logs(conn: &mut PgConnection, limit: i64) -> Result<Vec<Log>, diesel:
         .load(conn)
 }
 
+#[cfg(feature = "db")]
 pub fn establish_connection(database_url: &str) -> PgConnection {
     PgConnection::establish(database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))

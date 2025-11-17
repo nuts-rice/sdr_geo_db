@@ -1,7 +1,9 @@
 use crate::error::ValidationError;
 use chrono::{DateTime, NaiveDateTime, Utc};
+#[cfg(feature = "db")]
 use diesel::prelude::*;
 use serde::Serialize;
+
 //Frequency is in MHz
 #[derive(Serialize, Debug, Clone, Copy)]
 pub enum SignalMode {
@@ -13,9 +15,10 @@ pub enum SignalMode {
 }
 
 /// Database representation of an SDR measurement log entry
-#[derive(Debug, Clone, Queryable, Selectable, Serialize)]
-#[diesel(table_name = crate::schema::logs)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "db", derive(Queryable, Selectable))]
+#[cfg_attr(feature = "db", diesel(table_name = crate::schema::logs))]
+#[cfg_attr(feature = "db", diesel(check_for_backend(diesel::pg::Pg)))]
 pub struct Log {
     pub id: i32,
     pub frequency: f32,
@@ -29,8 +32,9 @@ pub struct Log {
 }
 
 /// New log entry for insertion into database
-#[derive(Insertable)]
-#[diesel(table_name = crate::schema::logs)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "db", derive(Insertable))]
+#[cfg_attr(feature = "db", diesel(table_name = crate::schema::logs))]
 pub struct NewLog<'a> {
     pub frequency: f32,
     pub xcoord: f32,
