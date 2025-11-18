@@ -4,8 +4,16 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, Paragraph, Widget},
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, Widget},
 };
+
+//Monochromatic Style consts
+const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00 - live data, highlights
+const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600 - labels, borders
+const AMBER_DIM: Color = Color::Rgb(85, 51, 0); // #553300 - grid, backgrounds
+const AMBER_VERY_DIM: Color = Color::Rgb(40, 24, 0);
+
+const THEMES: [&str; 2] = ["Mojave", "Catppuccin"];
 
 /// Source type for spectrum data
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,11 +35,12 @@ impl SpectrumSource {
     }
 }
 
-enum SelectedControl {
+/*enum SelectedControl {
     Source,
     LNAGain,
     VGAGain,
 }
+*/
 
 /// State for the spectrum viewer tab
 #[derive(Debug, Clone)]
@@ -52,6 +61,9 @@ pub struct SpectrumViewerState {
 
     /// Time parameter for animated signal (in radians)
     pub time: f64,
+
+    /// Peak hold values: Vec of (frequency_hz, power_dbm)
+    pub peak_hold: Vec<(f64, f64)>,
 }
 
 impl Default for SpectrumViewerState {
@@ -65,6 +77,7 @@ impl Default for SpectrumViewerState {
             lna_gain: 0,
             vga_gain: 0,
             time: 0.0,
+            peak_hold: Vec::new(),
         };
         state.generate_sample_data();
         state
@@ -164,7 +177,7 @@ impl SpectrumViewerState {
     /// Generate sample spectrum data for testing with time-varying signals
     /// TODO: Replace with actual SDR data from HackRF or file
     fn generate_sample_data(&mut self) {
-        let (freq_min, freq_max) = self.frequency_range();
+        let (freq_min, _freq_max) = self.frequency_range();
         let num_points = 200;
         let step = self.span / num_points as f64;
         let gain = (self.lna_gain + self.vga_gain) as f64;
@@ -232,6 +245,29 @@ impl SpectrumViewerState {
     pub fn tick(&mut self, delta_time: f64) {
         self.time += delta_time;
         self.generate_sample_data();
+        self.update_peak_hold();
+    }
+
+    /// Update peak hold values - keep maximum power seen at each frequency
+    fn update_peak_hold(&mut self) {
+        if self.peak_hold.is_empty() {
+            self.peak_hold = self.spectrum_data.clone();
+        } else {
+            for (i, (freq, power)) in self.spectrum_data.iter().enumerate() {
+                if i < self.peak_hold.len() {
+                    if *power > self.peak_hold[i].1 {
+                        self.peak_hold[i] = (*freq, *power);
+                    }
+                } else {
+                    self.peak_hold.push((*freq, *power));
+                }
+            }
+        }
+    }
+
+    /// Reset peak hold values
+    pub fn reset_peak_hold(&mut self) {
+        self.peak_hold.clear();
     }
 
     /// Reset time parameter
@@ -252,6 +288,7 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
     let chunks = Layout::vertical([
         Constraint::Length(5), // Source selector
         Constraint::Length(4), // Gain settings
+        Constraint::Length(5), // theme
         Constraint::Min(0),    // Remaining space
     ])
     .split(area);
@@ -262,9 +299,7 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
         .iter()
         .map(|source| {
             let style = if *source == state.source {
-                Style::default()
-                    .fg(Color::Rgb(138, 173, 244))
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(AMBER_MID).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::Gray)
             };
@@ -276,11 +311,26 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
         Block::default()
             .borders(Borders::ALL)
             .title("Source:")
-            .border_style(Style::default().fg(Color::Rgb(237, 135, 150)))
-            .style(Style::default().bg(Color::Rgb(14, 15, 23))),
+            .border_style(Style::default().fg(AMBER_MID))
+            .style(Style::default().bg(AMBER_DIM)),
     );
     list.render(chunks[0], buf);
 
+    let theme_items: Vec<ListItem> = THEMES
+        .iter()
+        .map(|theme| {
+            let style = Style::default().fg(Color::Gray);
+            ListItem::new(*theme).style(style)
+        })
+        .collect();
+    let theme_list = List::new(theme_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Theme:")
+            .border_style(Style::default().fg(AMBER_MID))
+            .style(Style::default().bg(AMBER_DIM)),
+    );
+    theme_list.render(chunks[2], buf);
     // Render gain settings
     let gain_lines = vec![
         Line::from(format!("LNA gain: {} dB", state.lna_gain)),
@@ -289,14 +339,26 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
 
     let gain_block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Rgb(237, 135, 150)))
-        .style(Style::default().bg(Color::Rgb(14, 15, 23)));
+        .border_style(Style::default().fg(AMBER_MID))
+        .style(Style::default().bg(AMBER_DIM));
 
     let gain_paragraph = ratatui::widgets::Paragraph::new(gain_lines)
         .block(gain_block)
         .style(Style::default().fg(Color::Gray));
 
     gain_paragraph.render(chunks[1], buf);
+}
+
+fn map_signal_strength_to_color(power_dbm: f64) -> Color {
+    if power_dbm >= -20.0 {
+        AMBER_BRIGHT
+    } else if power_dbm >= -40.0 {
+        AMBER_MID
+    } else if power_dbm >= -60.0 {
+        AMBER_DIM
+    } else {
+        AMBER_VERY_DIM
+    }
 }
 
 /// Render the spectrum viewer chart
@@ -308,42 +370,58 @@ fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buff
         .map(|(freq, power)| (*freq / 1e6, *power))
         .collect();
 
+    // Convert peak hold to MHz
+    let peak_hold_mhz: Vec<(f64, f64)> = state
+        .peak_hold
+        .iter()
+        .map(|(freq, power)| (*freq / 1e6, *power))
+        .collect();
+
+    // Main spectrum dataset
     let dataset = Dataset::default()
-        .name("Spectrum")
         .marker(symbols::Marker::Braille)
         .graph_type(GraphType::Line)
-        .style(Style::default().fg(Color::Cyan))
+        .style(Style::default().fg(AMBER_BRIGHT))
         .data(&data_mhz);
 
     let (freq_min, freq_max) = state.frequency_range();
     let freq_min_mhz = freq_min / 1e6;
     let freq_max_mhz = freq_max / 1e6;
 
-    // Create x-axis labels
+    // Create x-axis labels (all caps for Fallout aesthetic)
     let x_labels = vec![
-        Span::raw(format!("{:.1} M", freq_min_mhz)),
-        Span::raw(format!("{:.1} M", (freq_min_mhz + freq_max_mhz) / 2.0)),
-        Span::raw(format!("{:.1} M", freq_max_mhz)),
+        Span::styled(
+            format!("{:07.3} MHZ", freq_min_mhz),
+            Style::default().fg(AMBER_MID),
+        ),
+        Span::styled(
+            format!("{:07.3} MHZ", (freq_min_mhz + freq_max_mhz) / 2.0),
+            Style::default().fg(AMBER_MID),
+        ),
+        Span::styled(
+            format!("{:07.3} MHZ", freq_max_mhz),
+            Style::default().fg(AMBER_MID),
+        ),
     ];
 
-    // Create y-axis labels (power in dBm)
+    // Create y-axis labels
     let y_labels = vec![
-        Span::raw("-60"),
-        Span::raw("-50"),
-        Span::raw("-40"),
-        Span::raw("-30"),
-        Span::raw("-20"),
+        Span::styled("-60", Style::default().fg(AMBER_DIM)),
+        Span::styled("-50", Style::default().fg(AMBER_DIM)),
+        Span::styled("-40", Style::default().fg(AMBER_DIM)),
+        Span::styled("-30", Style::default().fg(AMBER_MID)),
+        Span::styled("-20", Style::default().fg(AMBER_MID)),
     ];
 
     let x_axis = Axis::default()
-        .title("Frequency")
-        .style(Style::default().fg(Color::Gray))
+        .title(Span::styled("FREQUENCY", Style::default().fg(AMBER_MID)))
+        .style(Style::default().fg(AMBER_DIM))
         .labels(x_labels)
         .bounds([freq_min_mhz, freq_max_mhz]);
 
     let y_axis = Axis::default()
-        .title("Power (dBm)")
-        .style(Style::default().fg(Color::Gray))
+        .title(Span::styled("POWER (DBM)", Style::default().fg(AMBER_MID)))
+        .style(Style::default().fg(AMBER_DIM))
         .labels(y_labels)
         .bounds([-60.0, -20.0]);
 
@@ -351,9 +429,12 @@ fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buff
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Chart widget")
-                .border_style(Style::default().fg(Color::Rgb(237, 135, 150)))
-                .style(Style::default().bg(Color::Rgb(14, 15, 23))),
+                .title(Span::styled(
+                    "[>>SPECTRUM<<]",
+                    Style::default().fg(AMBER_BRIGHT),
+                ))
+                .border_style(Style::default().fg(AMBER_MID))
+                .style(Style::default().bg(Color::Black)),
         )
         .x_axis(x_axis)
         .y_axis(y_axis);

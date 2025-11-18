@@ -1,3 +1,3 @@
-pub mod model;
+pub mod log;
 
-pub use model::{Log, NewLog};
+pub use log::{Log, NewLog};

@@ -4,7 +4,7 @@ use ratatui::style::{Color, Style};
 use ratatui::widgets::{Borders, Paragraph};
 use sdr_db::Log;
 use sdr_db::create_log;
-use sdr_db::model::model::render_log;
+use sdr_db::model::log::render_log;
 use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm, spectrum_view::SpectrumViewerState};
 
 use clap::Parser;
@@ -81,7 +81,6 @@ impl App {
             spectrum_viewer_state: SpectrumViewerState::default(),
         }
     }
-    //TODO: Tabs for Creating Logs, View Logs, Spectrum View + Source selector
     pub fn run(mut self, mut terminal: DefaultTerminal, database_url: &str) -> Result<()> {
         while self.state == AppState::Running {
             let conn = &mut PgConnection::establish(database_url)?;
@@ -107,44 +106,21 @@ impl App {
     fn submit_log_entry(&mut self, conn: &mut PgConnection) {
         let form = &self.new_log_form;
 
-        // Get validated coordinates
-        let latitude = match form.latitude() {
-            Ok(lat) => lat,
-            Err(_) => {
-                error!("Invalid latitude value");
-                return;
+        match create_log(
+            conn,
+            form.frequency,
+            form.grid_square.clone(),
+            form.callsign.to_string(),
+            form.mode,
+            form.comment.clone(),
+            form.recording_duration,
+        ) {
+            Ok(log) => {
+                info!("✓ Log entry created successfully!");
+                self.new_log_form.created_log = Some(log);
             }
-        };
-        let longitude = match form.longitude() {
-            Ok(lon) => lon,
-            Err(_) => {
-                error!("Invalid longitude value");
-                return;
-            }
-        };
-
-        if form.frequency > 0.0
-            && latitude.abs() <= 90.0
-            && longitude.abs() <= 180.0
-            && form.recording_duration >= 0.
-        {
-            match create_log(
-                conn,
-                form.frequency,
-                latitude,
-                longitude,
-                form.callsign.to_string(),
-                form.mode,
-                form.comment.clone(),
-                form.recording_duration,
-            ) {
-                Ok(log) => {
-                    info!("✓ Log entry created successfully!");
-                    self.new_log_form.created_log = Some(log);
-                }
-                Err(e) => {
-                    error!("Failed to create log entry: {}", e);
-                }
+            Err(e) => {
+                error!("Failed to create log entry: {}", e);
             }
         }
     }
@@ -157,100 +133,99 @@ impl App {
             std::time::Duration::from_millis(100)
         };
 
-        if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = crossterm::event::read()?
-                && key.kind == crossterm::event::KeyEventKind::Press
-            {
-                // If popup is showing, any key dismisses it
-                if self.new_log_form.created_log.is_some() {
-                    self.new_log_form = NewLogInputForm::default();
+        if crossterm::event::poll(timeout)?
+            && let Event::Key(key) = crossterm::event::read()?
+            && key.kind == crossterm::event::KeyEventKind::Press
+        {
+            // If popup is showing, any key dismisses it
+            if self.new_log_form.created_log.is_some() {
+                self.new_log_form = NewLogInputForm::default();
+                return Ok(());
+            }
+
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    //       if self.selected_tab != SelectedTab::CreateLog =>
+                    //   {
+                    self.quit();
                     return Ok(());
                 }
-
-                match key.code {
+                KeyCode::Char('l') => {
+                    self.next_tab();
+                    return Ok(());
+                }
+                KeyCode::Char('h') => {
+                    self.previous_tab();
+                    return Ok(());
+                }
+                _ => {}
+            }
+            match &self.selected_tab {
+                SelectedTab::CreateLog => match key.code {
+                    KeyCode::Enter => {
+                        self.submit_log_entry(conn);
+                    }
+                    KeyCode::Esc => {
+                        self.new_log_form = NewLogInputForm::default();
+                    }
+                    KeyCode::Tab => {
+                        if key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::SHIFT)
+                        {
+                            self.new_log_form.previous_field();
+                        } else {
+                            self.new_log_form.next_field();
+                        }
+                    }
+                    _ => {
+                        self.new_log_form.handle_key_event(key);
+                    }
+                },
+                SelectedTab::SpectrumViewer => match key.code {
+                    KeyCode::Up => {
+                        self.spectrum_viewer_state.increase_frequency();
+                    }
+                    KeyCode::Down => {
+                        self.spectrum_viewer_state.decrease_frequency();
+                    }
+                    KeyCode::Tab => {
+                        self.spectrum_viewer_state.toggle_source();
+                    }
+                    KeyCode::Char('l') | KeyCode::Char('L') => {
+                        if key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::SHIFT)
+                        {
+                            self.spectrum_viewer_state.decrease_lna_gain();
+                        } else {
+                            self.spectrum_viewer_state.increase_lna_gain();
+                        }
+                    }
+                    KeyCode::Char('v') | KeyCode::Char('V') => {
+                        if key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::SHIFT)
+                        {
+                            self.spectrum_viewer_state.decrease_vga_gain();
+                        } else {
+                            self.spectrum_viewer_state.increase_vga_gain();
+                        }
+                    }
+                    _ => {}
+                },
+                _ => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => {
-                        //       if self.selected_tab != SelectedTab::CreateLog =>
-                        //   {
                         self.quit();
-                        return Ok(());
                     }
                     KeyCode::Char('l') => {
                         self.next_tab();
-                        return Ok(());
                     }
                     KeyCode::Char('h') => {
                         self.previous_tab();
-                        return Ok(());
                     }
                     _ => {}
-                }
-                match &self.selected_tab {
-                    SelectedTab::CreateLog => match key.code {
-                        KeyCode::Enter => {
-                            self.submit_log_entry(conn);
-                        }
-                        KeyCode::Esc => {
-                            self.new_log_form = NewLogInputForm::default();
-                        }
-                        KeyCode::Tab => {
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::SHIFT)
-                            {
-                                self.new_log_form.previous_field();
-                            } else {
-                                self.new_log_form.next_field();
-                            }
-                        }
-                        _ => {
-                            self.new_log_form.handle_key_event(key);
-                        }
-                    },
-                    SelectedTab::SpectrumViewer => match key.code {
-                        KeyCode::Up => {
-                            self.spectrum_viewer_state.increase_frequency();
-                        }
-                        KeyCode::Down => {
-                            self.spectrum_viewer_state.decrease_frequency();
-                        }
-                        KeyCode::Tab => {
-                            self.spectrum_viewer_state.toggle_source();
-                        }
-                        KeyCode::Char('l') | KeyCode::Char('L') => {
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::SHIFT)
-                            {
-                                self.spectrum_viewer_state.decrease_lna_gain();
-                            } else {
-                                self.spectrum_viewer_state.increase_lna_gain();
-                            }
-                        }
-                        KeyCode::Char('v') | KeyCode::Char('V') => {
-                            if key
-                                .modifiers
-                                .contains(crossterm::event::KeyModifiers::SHIFT)
-                            {
-                                self.spectrum_viewer_state.decrease_vga_gain();
-                            } else {
-                                self.spectrum_viewer_state.increase_vga_gain();
-                            }
-                        }
-                        _ => {}
-                    },
-                    _ => match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => {
-                            self.quit();
-                        }
-                        KeyCode::Char('l') => {
-                            self.next_tab();
-                        }
-                        KeyCode::Char('h') => {
-                            self.previous_tab();
-                        }
-                        _ => {}
-                    },
-                }
+                },
             }
         }
 

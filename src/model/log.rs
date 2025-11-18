@@ -5,19 +5,14 @@ use diesel::prelude::*;
 use serde::Serialize;
 
 //Frequency is in MHz
-#[derive(Serialize, serde::Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, serde::Deserialize, Debug, Clone, Copy, Default)]
 pub enum SignalMode {
+    #[default]
     FM,
     AM,
     USB,
     LSB,
     CW,
-}
-
-impl Default for SignalMode {
-    fn default() -> Self {
-        SignalMode::FM
-    }
 }
 
 /// Database representation of an SDR measurement log entry
@@ -28,8 +23,7 @@ impl Default for SignalMode {
 pub struct Log {
     pub id: i32,
     pub frequency: f32,
-    pub xcoord: f32,
-    pub ycoord: f32,
+    pub grid: Option<String>,
     pub callsign: Option<String>,
     pub mode: String,
     pub comment: Option<String>,
@@ -43,8 +37,7 @@ pub struct Log {
 #[cfg_attr(feature = "db", diesel(table_name = crate::schema::logs))]
 pub struct NewLog<'a> {
     pub frequency: f32,
-    pub xcoord: f32,
-    pub ycoord: f32,
+    pub grid: &'a str,
     pub callsign: &'a str,
     pub mode: &'a str,
     pub comment: &'a str,
@@ -80,8 +73,7 @@ impl<'a> NewLog<'a> {
     /// Returns `ValidationError::InvalidFrequency` if frequency is not positive
     pub fn new(
         frequency: f32,
-        xcoord: f32,
-        ycoord: f32,
+        grid: &'a str,
         callsign: &'a str,
         mode: &'a str,
         comment: &'a str,
@@ -92,12 +84,13 @@ impl<'a> NewLog<'a> {
         if frequency <= 0.0 {
             return Err(ValidationError::InvalidFrequency(frequency as f64));
         }
-        if !(-180.0..=180.).contains(&xcoord) {
-            return Err(ValidationError::InvalidLatitude(xcoord as f64));
+
+        // Validate grid square format
+        let grid_len = grid.len();
+        if grid_len != 4 && grid_len != 6 {
+            return Err(ValidationError::InvalidGridSquare(grid.to_string()));
         }
-        if !(-90. ..=90.).contains(&ycoord) {
-            return Err(ValidationError::InvalidLongitude(ycoord as f64));
-        }
+
         if recording_duration < 0. {
             return Err(ValidationError::InvalidRecordingDuration(
                 recording_duration,
@@ -106,8 +99,7 @@ impl<'a> NewLog<'a> {
 
         Ok(NewLog {
             frequency,
-            xcoord,
-            ycoord,
+            grid,
             callsign,
             mode,
             comment,
@@ -120,13 +112,12 @@ impl<'a> NewLog<'a> {
 /// Render a log entry to the console
 pub fn render_log(log: &Log) -> String {
     let log_string = format!(
-        "{} MHz | Callsign: {} | Coordinate: ({}, {}) \n
+        "{} MHz | Callsign: {} | Grid: {} \n
         | Comment: {:?} | Mode: {} | Recorded at: {} \n
         | Duration: {:.2} sec",
         log.frequency,
         log.callsign.as_deref().unwrap_or("").to_uppercase(),
-        log.xcoord,
-        log.ycoord,
+        log.grid.as_deref().unwrap_or(""),
         log.comment.as_deref().unwrap_or(""),
         log.mode,
         log.timestamp,
@@ -137,13 +128,12 @@ pub fn render_log(log: &Log) -> String {
 
 pub fn render_new_log(new_log: &NewLog) -> String {
     let log_string = format!(
-        "{} MHz | Callsign: {} | Coordinate: ({}, {}) \n 
+        "{} MHz | Callsign: {} | Grid: {} \n
         | Comment: {:?} | Mode: {} | Recorded at: {} \n
         | Duration: {:.2} sec",
         new_log.frequency,
         new_log.callsign.to_uppercase(),
-        new_log.xcoord,
-        new_log.ycoord,
+        new_log.grid,
         new_log.comment,
         new_log.mode,
         new_log.timestamp,

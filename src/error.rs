@@ -9,6 +9,7 @@ pub enum ValidationError {
     InvalidTimestamp(String),
     InvalidBoundingBox(String),
     InvalidRecordingDuration(f32),
+    InvalidGridSquare(String),
     EmptyDataset,
 }
 
@@ -50,6 +51,13 @@ impl fmt::Display for ValidationError {
                     f,
                     "Invalid recording duration: {} (must be positive)",
                     duration
+                )
+            }
+            ValidationError::InvalidGridSquare(grid) => {
+                write!(
+                    f,
+                    "Invalid grid square: {} (must be 4 or 6 characters)",
+                    grid
                 )
             }
         }
