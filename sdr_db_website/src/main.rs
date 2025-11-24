@@ -2,19 +2,23 @@ use std::{cell::RefCell, io, rc::Rc};
 
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Stylize, Modifier, Style },
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, BorderType, Paragraph},
     Frame, Terminal,
 };
 
 use ratzilla::{
-    event::{KeyCode, KeyEvent, },
+    event::{KeyCode, KeyEvent},
     DomBackend, WebRenderer,
 };
 
-use sdr_db::{to_maidenhead, LogFormData, SignalMode};
+use sdr_db::{LogFormData, SignalMode};
+use yew::prelude::*;
+use yew_hooks::prelude::*;
 
+pub mod components;
+use components::geolocate_gridsquare;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FormField {
     Frequency,
@@ -66,17 +70,14 @@ impl FormField {
     }
 }
 
-
-
 fn main() -> io::Result<()> {
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
-
     let state = Rc::new(App::default());
 
     let event_state = Rc::clone(&state);
     terminal.on_key_event(move |key_event| {
-        event_state.handle_events(key_event);
+        event_state.handle_events(key_event, &event_state);
     });
 
     let render_state = Rc::clone(&state);
@@ -104,16 +105,20 @@ impl App {
         use ratatui::widgets::*;
 
         let chunks = Layout::vertical([
-            Constraint::Length(3),  // Title
-            Constraint::Min(0),     // Form
-            Constraint::Length(3),  // Status
-            Constraint::Length(1),  // Help
+            Constraint::Length(3), // Title
+            Constraint::Min(0),    // Form
+            Constraint::Length(3), // Status
+            Constraint::Length(1), // Help
         ])
         .split(frame.area());
 
         // Title
         let title = Paragraph::new("SDR Database - New Log Entry")
-            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded),
+            )
             .alignment(Alignment::Center)
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD);
@@ -135,6 +140,7 @@ impl App {
         let help = Line::from(vec![
             Span::raw("Tab/Shift+Tab: Navigate | "),
             Span::raw("Enter: Submit | "),
+            Span::raw("G: Geolocate | "),
             Span::raw("Esc: Clear"),
         ]);
         frame.render_widget(help, chunks[3]);
@@ -148,11 +154,17 @@ impl App {
 
         let fields = [
             (FormField::Frequency, self.frequency_input.borrow().clone()),
-            (FormField::GridSquare, self.grid_square_input.borrow().clone()),
+            (
+                FormField::GridSquare,
+                self.grid_square_input.borrow().clone(),
+            ),
             (FormField::Callsign, self.callsign_input.borrow().clone()),
             (FormField::Mode, format!("{:?}", form.mode)),
             (FormField::Comment, self.comment_input.borrow().clone()),
-            (FormField::RecordingDuration, self.duration_input.borrow().clone()),
+            (
+                FormField::RecordingDuration,
+                self.duration_input.borrow().clone(),
+            ),
         ];
 
         let items: Vec<ListItem> = fields
@@ -183,7 +195,22 @@ impl App {
         frame.render_widget(list, area);
     }
 
-    fn handle_events(&self, key_event: KeyEvent) {
+    fn request_geolocation(self: &Rc<Self>) {
+        if let Some(geolocation) = geolocate_gridsquare::get_geolocation() {
+            let app = Rc::clone(self);
+            geolocate_gridsquare::request_gridsquare(&geolocation, move |gridsquare| {
+                *app.grid_square_input.borrow_mut() = gridsquare.clone();
+                *app.status_message.borrow_mut() =
+                    Some(format!("✓ Location detected: {}", gridsquare));
+            });
+            *self.status_message.borrow_mut() = Some("Requesting location...".to_string());
+        } else {
+            *self.status_message.borrow_mut() =
+                Some("✗ Geolocation not available in this browser".to_string());
+        }
+    }
+
+    fn handle_events(&self, key_event: KeyEvent, app_rc: &Rc<Self>) {
         match key_event.code {
             KeyCode::Tab => {
                 let mut selected = self.selected_field.borrow_mut();
@@ -202,9 +229,10 @@ impl App {
             KeyCode::Backspace => {
                 self.handle_backspace();
             }
-            KeyCode::Char(c) => {
-                self.handle_char_input(c);
-            }
+            KeyCode::Char(c) => match c.to_ascii_lowercase() {
+                'g' => app_rc.request_geolocation(),
+                _ => self.handle_char_input(c),
+            },
             KeyCode::Up | KeyCode::Down => {
                 if *self.selected_field.borrow() == FormField::Mode {
                     self.cycle_mode(key_event.code == KeyCode::Up);
@@ -222,30 +250,70 @@ impl App {
             FormField::Callsign => self.callsign_input.borrow_mut().push(c),
             FormField::Comment => self.comment_input.borrow_mut().push(c),
             FormField::RecordingDuration => self.duration_input.borrow_mut().push(c),
-            FormField::Mode => {},
+            FormField::Mode => {}
         }
     }
 
     fn handle_backspace(&self) {
         let focused = *self.selected_field.borrow();
         match focused {
-            FormField::Frequency => { self.frequency_input.borrow_mut().pop(); },
-            FormField::GridSquare => { self.grid_square_input.borrow_mut().pop(); },
-            FormField::Callsign => { self.callsign_input.borrow_mut().pop(); },
-            FormField::Comment => { self.comment_input.borrow_mut().pop(); },
-            FormField::RecordingDuration => { self.duration_input.borrow_mut().pop(); },
-            FormField::Mode => {},
+            FormField::Frequency => {
+                self.frequency_input.borrow_mut().pop();
+            }
+            FormField::GridSquare => {
+                self.grid_square_input.borrow_mut().pop();
+            }
+            FormField::Callsign => {
+                self.callsign_input.borrow_mut().pop();
+            }
+            FormField::Comment => {
+                self.comment_input.borrow_mut().pop();
+            }
+            FormField::RecordingDuration => {
+                self.duration_input.borrow_mut().pop();
+            }
+            FormField::Mode => {}
         }
     }
 
     fn cycle_mode(&self, reverse: bool) {
         let mut form = self.form_data.borrow_mut();
         form.mode = match form.mode {
-            SignalMode::FM => if reverse { SignalMode::CW } else { SignalMode::AM },
-            SignalMode::AM => if reverse { SignalMode::FM } else { SignalMode::USB },
-            SignalMode::USB => if reverse { SignalMode::AM } else { SignalMode::LSB },
-            SignalMode::LSB => if reverse { SignalMode::USB } else { SignalMode::CW },
-            SignalMode::CW => if reverse { SignalMode::LSB } else { SignalMode::FM },
+            SignalMode::FM => {
+                if reverse {
+                    SignalMode::CW
+                } else {
+                    SignalMode::AM
+                }
+            }
+            SignalMode::AM => {
+                if reverse {
+                    SignalMode::FM
+                } else {
+                    SignalMode::USB
+                }
+            }
+            SignalMode::USB => {
+                if reverse {
+                    SignalMode::AM
+                } else {
+                    SignalMode::LSB
+                }
+            }
+            SignalMode::LSB => {
+                if reverse {
+                    SignalMode::USB
+                } else {
+                    SignalMode::CW
+                }
+            }
+            SignalMode::CW => {
+                if reverse {
+                    SignalMode::LSB
+                } else {
+                    SignalMode::FM
+                }
+            }
         };
     }
 
