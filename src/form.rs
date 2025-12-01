@@ -3,7 +3,6 @@
 use crate::model::log::SignalMode;
 use serde::{Deserialize, Serialize};
 
-/// Form data for creating a new log entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogFormData {
     pub frequency: f32,
@@ -26,7 +25,6 @@ impl LogFormData {
         }
     }
 
-    /// Validate the form data
     pub fn validate(&self) -> Result<(), String> {
         if self.frequency <= 0.0 {
             return Err("Frequency must be positive".to_string());
