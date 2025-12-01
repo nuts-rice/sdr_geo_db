@@ -11,7 +11,6 @@ use ratatui::{
 const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00 - live data, highlights
 const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600 - labels, borders
 const AMBER_DIM: Color = Color::Rgb(85, 51, 0); // #553300 - grid, backgrounds
-const AMBER_VERY_DIM: Color = Color::Rgb(40, 24, 0);
 
 const THEMES: [&str; 2] = ["Mojave", "Catppuccin"];
 
@@ -349,17 +348,6 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
     gain_paragraph.render(chunks[1], buf);
 }
 
-fn map_signal_strength_to_color(power_dbm: f64) -> Color {
-    if power_dbm >= -20.0 {
-        AMBER_BRIGHT
-    } else if power_dbm >= -40.0 {
-        AMBER_MID
-    } else if power_dbm >= -60.0 {
-        AMBER_DIM
-    } else {
-        AMBER_VERY_DIM
-    }
-}
 
 /// Render the spectrum viewer chart
 fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) {
@@ -370,12 +358,6 @@ fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buff
         .map(|(freq, power)| (*freq / 1e6, *power))
         .collect();
 
-    // Convert peak hold to MHz
-    let peak_hold_mhz: Vec<(f64, f64)> = state
-        .peak_hold
-        .iter()
-        .map(|(freq, power)| (*freq / 1e6, *power))
-        .collect();
 
     // Main spectrum dataset
     let dataset = Dataset::default()

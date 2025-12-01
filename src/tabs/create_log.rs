@@ -14,64 +14,6 @@ const LOG_ENTRY_HEADER_STYLE: ratatui::style::Style = Style::new()
     .fg(Color::Rgb(14, 15, 23))
     .bg(Color::Rgb(54, 68, 96));
 const NORMAL_ROW_BG: Color = Color::Rgb(14, 15, 23);
-/*
-#[derive(Debug, Serialize)]
-struct ModeSelectField {
-    #[serde(skip)]
-    label: &'static str,
-    value: Option<SignalMode>,
-}
-
-impl ModeSelectField {
-    //const fn new(label: &'static str) -> Self {
-    //    Self { label, value: None }
-    //}
-
-    fn on_key_press(&mut self, event: KeyEvent) {
-        match event.code {
-            //Round robin through modes
-            KeyCode::Up => {
-                self.value = match self.value {
-                    Some(SignalMode::AM) => Some(SignalMode::FM),
-                    Some(SignalMode::FM) => Some(SignalMode::USB),
-                    Some(SignalMode::USB) => Some(SignalMode::LSB),
-                    Some(SignalMode::LSB) => Some(SignalMode::CW),
-                    Some(SignalMode::CW) => Some(SignalMode::AM),
-                    None => Some(SignalMode::AM),
-                }
-            }
-            KeyCode::Down => {
-                self.value = match self.value {
-                    Some(SignalMode::AM) => Some(SignalMode::CW),
-                    Some(SignalMode::CW) => Some(SignalMode::LSB),
-                    Some(SignalMode::LSB) => Some(SignalMode::USB),
-                    Some(SignalMode::USB) => Some(SignalMode::FM),
-                    Some(SignalMode::FM) => Some(SignalMode::AM),
-                    None => Some(SignalMode::AM),
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-impl Widget for ModeSelectField {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let layout = Layout::horizontal([
-            Constraint::Length(self.label.len() as u16 + 2),
-            Constraint::Fill(1),
-        ]);
-        let chunks = layout.split(area);
-        let label = Line::from_iter([self.label, ":"]).bold();
-        let value = match self.value {
-            Some(v) => Line::from(format!("{:?}", v)),
-            None => Line::from("_____"),
-        };
-        label.render(chunks[0], buf);
-        value.render(chunks[1], buf);
-    }
-}
-*/
 
 //TODO: should these be Option?
 #[derive(Serialize)]
@@ -176,17 +118,13 @@ impl NewLogInputForm {
             }
             LogEntryFocus::Callsign => {
                 if let KeyCode::Char(c) = event.code {
-                    let mut current = self.callsign.clone();
-                    current.push(c);
-                    self.callsign = current;
+                    self.callsign.push(c);
                 } else if event.code == KeyCode::Backspace {
-                    let current = self.callsign.clone();
-                    let mut new_callsign = current;
-                    new_callsign.pop();
-                    self.callsign = if new_callsign.is_empty() {
+                    self.callsign.pop();
+                    self.callsign = if self.callsign.is_empty() {
                         "".to_string()
                     } else {
-                        new_callsign
+                        self.callsign.clone()
                     };
                 }
             }
@@ -213,17 +151,13 @@ impl NewLogInputForm {
             },
             LogEntryFocus::Comment => {
                 if let KeyCode::Char(c) = event.code {
-                    let mut current = self.comment.clone();
-                    current.push(c);
-                    self.comment = current;
+                    self.comment.push(c);
                 } else if event.code == KeyCode::Backspace {
-                    let current = self.comment.clone();
-                    let mut new_comment = current;
-                    new_comment.pop();
-                    self.comment = if new_comment.is_empty() {
+                    self.comment.pop();
+                    self.comment = if self.comment.is_empty() {
                         "".to_string()
                     } else {
-                        new_comment
+                        self.comment.clone()
                     };
                 }
             }
@@ -246,26 +180,6 @@ impl NewLogInputForm {
                 }
             }
         }
-        /*match event.code {
-             KeyCode::Enter => {
-                 if (self.frequency > 0.0 && self.latitude.abs() <= 90.0 && self.longitude.abs() <= 180.0 && self.recording_duration >= 0.) {
-                     match create_log(&mut self.conn, self.frequency, self.latitude, self.longitude, self.callsign, self.mode, Some(self.comment), self.recording_duration)
-                     {
-                         Ok(log) => {
-                 info!("✓ Log entry created successfully!");
-                 render(&log);
-
-
-                         }
-             Err(e) => {
-                 error!("Failed to create log entry: {}", e);
-                 continue;
-
-                 }
-             }
-
-             }
-        */
     }
 
     pub fn get_cursor_position(&self, area: Rect) -> Option<(u16, u16)> {
