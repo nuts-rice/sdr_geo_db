@@ -1,8 +1,10 @@
 use num_complex::Complex;
-use soapysdr::{Device, Direction};
+use soapysdr::{Device, Direction, RxStream};
 use tokio::sync::mpsc;
 
 use crate::source::{Source, SourceError};
+
+const BUFFER_SIZE: usize = 262144;
 
 pub struct HackRFConfig {
     pub device_index: usize,
@@ -28,24 +30,58 @@ impl Default for HackRFConfig {
 
 pub struct HackRFSource {
     device: Device,
-    _config: HackRFConfig,
+    config: HackRFConfig,
+    buffer: Vec<Complex<f32>>,
+    rx_stream: Option<RxStream<Complex<f32>>>,
+    receiver: mpsc::Receiver<Vec<u8>>,
+    is_streaming: bool,
 }
 
 #[async_trait::async_trait]
 impl Source for HackRFSource {
     async fn next_samples(&mut self) -> Result<Option<Vec<Complex<f32>>>, SourceError> {
-        todo!()
+        if let Some(rx_stream) = &mut self.rx_stream {
+            let mut buffer = vec![Complex::<f32>::new(0.0, 0.0); BUFFER_SIZE];
+            let samples_read = rx_stream
+                .read(&mut [buffer.as_mut_slice()], 1000000)
+                .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+            if samples_read > 0 {
+                buffer.truncate(samples_read);
+                Ok(Some(buffer))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Err(SourceError::NotStreaming)
+        }
     }
     async fn start(&mut self) -> Result<(), SourceError> {
+        self.device
+            .set_sample_rate(Direction::Rx, 0, self.config.sample_rate as f64)
+            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+        self.device
+            .set_bandwidth(Direction::Rx, 0, self.config.bandwidth as f64)
+            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+        self.set_frequency(self.config.center_frequency)?;
+        self.set_lna_gain(self.config.lna_gain)?;
+        self.set_vga_gain(self.config.vga_gain)?;
+
+        let rx_stream = self
+            .device
+            .rx_stream::<Complex<f32>>(&[0])
+            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+        self.rx_stream = Some(rx_stream);
+        self.is_streaming = true;
+        Ok(())
+    }
+    async fn stop(&mut self) -> Result<(), SourceError> {
+        if self.rx_stream.is_some() {
+            self.rx_stream = None;
+        }
+        self.is_streaming = false;
         Ok(())
     }
 
-    async fn stop(&mut self) -> Result<(), SourceError> {
-        Ok(())
-    }
-    fn get_receiver(&mut self) -> &mut mpsc::Receiver<Vec<u8>> {
-        todo!()
-    }
     fn get_device_info(&self) -> String {
         todo!()
     }
@@ -60,7 +96,11 @@ impl HackRFSource {
             Device::new("driver=hackrf").map_err(|e| SourceError::DeviceError(e.to_string()))?;
         Ok(Self {
             device,
-            _config: config,
+            config,
+            buffer: Vec::with_capacity(BUFFER_SIZE),
+            rx_stream: None,
+            receiver: mpsc::channel(100).1,
+            is_streaming: false,
         })
     }
 

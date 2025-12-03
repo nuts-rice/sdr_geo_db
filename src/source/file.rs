@@ -1,4 +1,6 @@
 use crate::source::{SourceError, spectrum::SpectrumDataSource};
+
+#[derive(Debug, Clone)]
 pub struct FileSpectrum {
     file_path: String,
     /// Cached spectrum data: (frequency_hz, power_dbm)

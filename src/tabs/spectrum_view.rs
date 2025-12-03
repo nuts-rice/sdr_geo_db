@@ -7,6 +7,8 @@ use ratatui::{
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, Widget},
 };
 
+use crate::source::file::FileSpectrum;
+use crate::source::spectrum::SpectrumDataSource;
 //Monochromatic Style consts
 const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00 - live data, highlights
 const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600 - labels, borders
@@ -63,6 +65,8 @@ pub struct SpectrumViewerState {
 
     /// Peak hold values: Vec of (frequency_hz, power_dbm)
     pub peak_hold: Vec<(f64, f64)>,
+
+    pub csv_source: Option<FileSpectrum>,
 }
 
 impl Default for SpectrumViewerState {
@@ -77,6 +81,7 @@ impl Default for SpectrumViewerState {
             vga_gain: 0,
             time: 0.0,
             peak_hold: Vec::new(),
+            csv_source: FileSpectrum::from_csv("./recordings/sweep.csv".to_string()).ok(),
         };
         state.generate_sample_data();
         state
@@ -176,6 +181,19 @@ impl SpectrumViewerState {
     /// Generate sample spectrum data for testing with time-varying signals
     /// TODO: Replace with actual SDR data from HackRF or file
     fn generate_sample_data(&mut self) {
+        if self.source == SpectrumSource::File {
+            if let Some(ref mut csv) = self.csv_source {
+                match csv.get_spectrum_data(self.center_frequency, self.span) {
+                    Ok(data) => {
+                        self.spectrum_data = data;
+                        return;
+                    }
+                    Err(_) => {
+                        // Fall back to sample data generation on error
+                    }
+                }
+            }
+        };
         let (freq_min, _freq_max) = self.frequency_range();
         let num_points = 200;
         let step = self.span / num_points as f64;
@@ -348,7 +366,6 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
     gain_paragraph.render(chunks[1], buf);
 }
 
-
 /// Render the spectrum viewer chart
 fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) {
     // Convert frequency to MHz for display
@@ -357,7 +374,6 @@ fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buff
         .iter()
         .map(|(freq, power)| (*freq / 1e6, *power))
         .collect();
-
 
     // Main spectrum dataset
     let dataset = Dataset::default()
