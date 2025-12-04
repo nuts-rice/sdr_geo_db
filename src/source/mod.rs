@@ -32,19 +32,9 @@ impl fmt::Display for SourceError {
     }
 }
 
-#[async_trait::async_trait]
-pub trait Source: Send {
-    async fn start(&mut self) -> Result<(), SourceError>;
-    async fn stop(&mut self) -> Result<(), SourceError>;
-    async fn next_samples(&mut self) -> Result<Option<Vec<Complex<f32>>>, SourceError>;
-    fn get_device_info(&self) -> String;
-    fn get_center_frequency(&self) -> f32;
-}
-
 //Streaming IQ data
-#[async_trait::async_trait]
 trait IQSource: Send {
-    async fn read_samples(&mut self, buffer: &mut [Complex<f32>]) -> Result<usize, SourceError>;
-    async fn set_frequency(&mut self, freq: f32) -> Result<(), SourceError>;
-    async fn set_sample_rate(&mut self, rate: f32) -> Result<(), SourceError>;
+    fn read_samples(&mut self, buffer: &mut [Complex<f32>]) -> Result<usize, SourceError>;
+    fn set_frequency(&mut self, freq: f32) -> Result<(), SourceError>;
+    fn set_sample_rate(&mut self, rate: f32) -> Result<(), SourceError>;
 }

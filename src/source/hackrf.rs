@@ -2,7 +2,7 @@ use num_complex::Complex;
 use soapysdr::{Device, Direction, RxStream};
 use tokio::sync::mpsc;
 
-use crate::source::{Source, SourceError};
+use crate::source::{IQSource, SourceError};
 
 const BUFFER_SIZE: usize = 262144;
 
@@ -38,55 +38,45 @@ pub struct HackRFSource {
 }
 
 #[async_trait::async_trait]
-impl Source for HackRFSource {
-    async fn next_samples(&mut self) -> Result<Option<Vec<Complex<f32>>>, SourceError> {
-        if let Some(rx_stream) = &mut self.rx_stream {
-            let mut buffer = vec![Complex::<f32>::new(0.0, 0.0); BUFFER_SIZE];
-            let samples_read = rx_stream
-                .read(&mut [buffer.as_mut_slice()], 1000000)
+impl IQSource for HackRFSource {
+    fn read_samples(&mut self, buffer: &mut [Complex<f32>]) -> Result<usize, SourceError> {
+        if !self.is_streaming {
+            self.device
+                .set_sample_rate(Direction::Rx, 0, self.config.sample_rate as f64)
                 .map_err(|e| SourceError::DeviceError(e.to_string()))?;
-            if samples_read > 0 {
-                buffer.truncate(samples_read);
-                Ok(Some(buffer))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Err(SourceError::NotStreaming)
-        }
-    }
-    async fn start(&mut self) -> Result<(), SourceError> {
-        self.device
-            .set_sample_rate(Direction::Rx, 0, self.config.sample_rate as f64)
-            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
-        self.device
-            .set_bandwidth(Direction::Rx, 0, self.config.bandwidth as f64)
-            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
-        self.set_frequency(self.config.center_frequency)?;
-        self.set_lna_gain(self.config.lna_gain)?;
-        self.set_vga_gain(self.config.vga_gain)?;
+            self.device
+                .set_bandwidth(Direction::Rx, 0, self.config.bandwidth as f64)
+                .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+            self.set_frequency(self.config.center_frequency)?;
+            self.set_lna_gain(self.config.lna_gain)?;
+            self.set_vga_gain(self.config.vga_gain)?;
 
-        let rx_stream = self
-            .device
-            .rx_stream::<Complex<f32>>(&[0])
-            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
-        self.rx_stream = Some(rx_stream);
-        self.is_streaming = true;
-        Ok(())
-    }
-    async fn stop(&mut self) -> Result<(), SourceError> {
-        if self.rx_stream.is_some() {
-            self.rx_stream = None;
+            let mut rx_stream = self
+                .device
+                .rx_stream::<Complex<f32>>(&[0])
+                .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+            rx_stream
+                .activate(None)
+                .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+            self.rx_stream = Some(rx_stream);
+            self.is_streaming = true;
         }
-        self.is_streaming = false;
-        Ok(())
+
+        let rx_stream = self.rx_stream.as_mut().ok_or(SourceError::NotStreaming)?;
+        let num_samples = rx_stream
+            .read(&mut [buffer], 1000000)
+            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+
+        Ok(num_samples)
+    }
+    fn set_frequency(&mut self, freq: f32) -> Result<(), SourceError> {
+        self.set_frequency(freq)
     }
 
-    fn get_device_info(&self) -> String {
-        todo!()
-    }
-    fn get_center_frequency(&self) -> f32 {
-        todo!()
+    fn set_sample_rate(&mut self, rate: f32) -> Result<(), SourceError> {
+        self.device
+            .set_sample_rate(Direction::Rx, 0, rate as f64)
+            .map_err(|e| SourceError::DeviceError(e.to_string()))
     }
 }
 
