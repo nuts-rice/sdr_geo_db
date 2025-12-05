@@ -4,6 +4,7 @@ diesel::table! {
     logs (id) {
         id -> Int4,
         frequency -> Float4,
+        #[max_length = 10]
         grid -> Nullable<Varchar>,
         #[max_length = 50]
         callsign -> Nullable<Varchar>,
