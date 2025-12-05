@@ -6,9 +6,9 @@ use std::fmt;
 pub mod hackrf;
 pub mod stream;
 
+pub mod cache;
 pub mod file;
 pub mod spectrum;
-
 #[derive(Debug)]
 pub enum SourceError {
     StartError(String),
