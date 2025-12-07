@@ -37,7 +37,6 @@ pub struct HackRFSource {
     is_streaming: bool,
 }
 
-#[async_trait::async_trait]
 impl IQSource for HackRFSource {
     fn read_samples(&mut self, buffer: &mut [Complex<f32>]) -> Result<usize, SourceError> {
         if !self.is_streaming {

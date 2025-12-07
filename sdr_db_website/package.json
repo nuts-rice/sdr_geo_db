@@ -1,0 +1,18 @@
+{
+  "name": "sdr_db_website",
+  "version": "0.1.0",
+  "description": "SDR Database Website - WASM Application",
+  "scripts": {
+    "setup": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . $HOME/.cargo/env && rustup target add wasm32-unknown-unknown",
+    "install-trunk": ". $HOME/.cargo/env && cargo install --locked trunk || true",
+    "prebuild": "npm run setup && npm run install-trunk",
+    "build": ". $HOME/.cargo/env && trunk build --release",
+    "dev": ". $HOME/.cargo/env && trunk serve"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/sdr_db"
+  },
+  "license": "MIT",
+  "devDependencies": {}
+}

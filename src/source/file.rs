@@ -14,10 +14,10 @@ impl FileSpectrum {
     ///
     /// Expected CSV format:
     /// ```csv
-    /// frequency_hz,power_dbm
-    /// 162000000.0,-65.2
-    /// 162001000.0,-68.1
+    /// date, time, hz_low, hz_high, hz_bin_width, num_samples, db, db, db, db, db
     /// ```
+    /// Each row represents a single sweep across the frequency range with timestamp.
+    /// Power measurements in dB are provided for each frequency bin.
     pub fn from_csv(file_path: String) -> Result<Self, SourceError> {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
@@ -42,29 +42,50 @@ impl FileSpectrum {
             }
 
             // Skip header line
-            if line_num == 0 && line.contains("frequency") {
+            if line.to_lowercase().contains("date") || line.to_lowercase().contains("time") {
                 continue;
             }
 
             let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() != 2 {
+            if parts.len() < 7 {
                 return Err(SourceError::StreamError(format!(
-                    "Invalid CSV format at line {}: expected 2 columns",
+                    "Invalid CSV format at line {}: expected at least 7 columns (date, time, hz_low, hz_high, hz_bin_width, num_samples, db values...)",
                     line_num + 1
                 )));
             }
 
-            let freq: f64 = parts[0].trim().parse().map_err(|_| {
-                SourceError::StreamError(format!("Invalid frequency at line {}", line_num + 1))
+            // Parse frequency range info (skip date/time at indices 0,1)
+            let hz_low: f64 = parts[2].trim().parse().map_err(|_| {
+                SourceError::StreamError(format!("Invalid hz_low at line {}", line_num + 1))
             })?;
-            let power: f64 = parts[1].trim().parse().map_err(|_| {
-                SourceError::StreamError(format!("Invalid power at line {}", line_num + 1))
+            let _hz_high: f64 = parts[3].trim().parse().map_err(|_| {
+                SourceError::StreamError(format!("Invalid hz_high at line {}", line_num + 1))
+            })?;
+            let hz_bin_width: f64 = parts[4].trim().parse().map_err(|_| {
+                SourceError::StreamError(format!("Invalid hz_bin_width at line {}", line_num + 1))
+            })?;
+            let _num_samples: usize = parts[5].trim().parse().map_err(|_| {
+                SourceError::StreamError(format!("Invalid num_samples at line {}", line_num + 1))
             })?;
 
-            data.push((freq, power));
+            // Parse power values starting from column 6
+            for (bin_idx, power_str) in parts[6..].iter().enumerate() {
+                let power: f64 = power_str.trim().parse().map_err(|_| {
+                    SourceError::StreamError(format!(
+                        "Invalid power value at line {}, column {}",
+                        line_num + 1,
+                        bin_idx + 6
+                    ))
+                })?;
 
-            min_freq = min_freq.min(freq);
-            max_freq = max_freq.max(freq);
+                // Calculate frequency for this bin
+                let freq = hz_low + (bin_idx as f64 * hz_bin_width);
+
+                data.push((freq, power));
+
+                min_freq = min_freq.min(freq);
+                max_freq = max_freq.max(freq);
+            }
         }
 
         if data.is_empty() {
