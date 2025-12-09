@@ -28,6 +28,7 @@ impl Default for HackRFConfig {
     }
 }
 
+#[allow(dead_code)]
 pub struct HackRFSource {
     device: Device,
     config: HackRFConfig,

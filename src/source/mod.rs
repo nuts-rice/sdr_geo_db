@@ -1,5 +1,4 @@
 use num_complex::Complex;
-use tokio::sync::mpsc;
 
 use std::fmt;
 
@@ -33,6 +32,7 @@ impl fmt::Display for SourceError {
 }
 
 //Streaming IQ data
+#[allow(dead_code)]
 trait IQSource: Send {
     fn read_samples(&mut self, buffer: &mut [Complex<f32>]) -> Result<usize, SourceError>;
     fn set_frequency(&mut self, freq: f32) -> Result<(), SourceError>;
