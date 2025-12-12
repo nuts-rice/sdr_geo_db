@@ -1,0 +1,51 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Environment files
+.env
+.env.*
+
+# Documentation
+*.md
+docs/
+
+# Test files
+tests/
+
+# Website files (not needed for API)
+sdr_db_website/
+
+# Local history
+.local-history/
+
+# Jupyter notebooks
+*.ipynb
+.jukit/
+
+# Recordings and data
+recordings/
+
+# Deployment configs
+fly.toml
+railway.toml
+.vercelignore
+vercel.json
+
+# Logs
+*.log

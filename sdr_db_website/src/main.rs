@@ -1,11 +1,10 @@
 use std::{cell::RefCell, io, rc::Rc};
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Layout},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, Paragraph},
-    Frame, Terminal,
+    Frame, Terminal, DefaultTerminal
 };
 
 use ratzilla::{
@@ -13,10 +12,7 @@ use ratzilla::{
     DomBackend, WebRenderer,
 };
 
-use sdr_db::{LogFormData, SignalMode};
-use yew::prelude::*;
-use yew_hooks::prelude::*;
-
+use sdr_db::{LogFormData, SignalMode, };
 pub mod components;
 use components::geolocate_gridsquare;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,6 +67,8 @@ impl FormField {
 }
 
 fn main() -> io::Result<()> {
+    let database_url = dotenvy::var("DATABASE_URL").expect("DATABASE_URL must be set ");
+    
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
     let state = Rc::new(App::default());
@@ -98,9 +96,23 @@ struct App {
     duration_input: RefCell<String>,
     selected_field: RefCell<FormField>,
     status_message: RefCell<Option<String>>,
+    state: RefCell<AppState>,
 }
 
+
 impl App {
+
+    fn run(mut self, terminal: &mut DefaultTerminal, database_url: &str) -> io::Result<()> {
+        while self.state == AppState::Running {
+            let conn = &mut PgConnection::establish(database_url)?;
+        
+        loop {
+            terminal.draw_web(move |frame| {
+                app_rc.render(frame);
+            })?;
+        }
+    }
+    }
     fn render(&self, frame: &mut Frame) {
         use ratatui::widgets::*;
 
@@ -333,7 +345,7 @@ impl App {
                 match form.validate() {
                     Ok(_) => {
                         *self.status_message.borrow_mut() =
-                            Some("✓ Form validated! (API submission TODO)".to_string());
+                            Some("✓ Form validated! )".to_string());
                     }
                     Err(e) => {
                         *self.status_message.borrow_mut() = Some(format!("✗ Error: {}", e));

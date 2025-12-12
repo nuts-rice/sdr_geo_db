@@ -14,8 +14,13 @@ use tracing::{error, info};
 
 use sdr_db::{Log, LogFormData, create_log, get_logs};
 
-type DbPool = Pool<ConnectionManager<PgConnection>>;
 
+/*
+*#post log : curl -X POST http://localhost:3000/logs -H "Content-Type: application/json" -d '{"frequency": 14.070, "grid_square": "FN31", "callsign": "K1ABC", "mode": "FT8", "comment": "Test log entry", "recording_duration": 120.5}' 
+*#get logs : curl -X GET 'http://localhost:3000/logs?limit=10&mode=FT8&grid=FN31'
+*#health check : curl -X GET http://localhost:3000/health
+*/
+type DbPool = Pool<ConnectionManager<PgConnection>>;
 
 #[derive(Clone)]
 struct Config {
@@ -42,7 +47,6 @@ impl Config {
         })
     }
 }
-
 
 #[derive(Serialize)]
 struct LogResponse {
@@ -101,7 +105,6 @@ fn default_limit() -> i64 {
     100
 }
 
-
 #[derive(Error, Debug)]
 enum AppError {
     #[error("Database error: {0}")]
@@ -147,7 +150,6 @@ impl IntoResponse for AppError {
         (status, Json(ErrorResponse { error: message })).into_response()
     }
 }
-
 
 async fn create_log_handler(
     State(pool): State<DbPool>,
@@ -226,7 +228,6 @@ async fn health_handler(State(pool): State<DbPool>) -> Result<Json<HealthRespons
         database: db_status,
     }))
 }
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
