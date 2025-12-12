@@ -66,7 +66,7 @@ struct App {
 }
 
 #[derive(Default, Clone, Eq, PartialEq)]
-enum AppState {
+pub enum AppState {
     #[default]
     Running,
     Quitting,
