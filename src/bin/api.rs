@@ -16,7 +16,7 @@ use sdr_db::{Log, LogFormData, create_log, get_logs};
 
 
 /*
-*#post log : curl -X POST http://localhost:3000/logs -H "Content-Type: application/json" -d '{"frequency": 14.070, "grid_square": "FN31", "callsign": "K1ABC", "mode": "FT8", "comment": "Test log entry", "recording_duration": 120.5}' 
+*#post log : curl -X POST http://localhost:3000/logs -H "Content-Type: application/json" -d '{"frequency": 14.070, "grid_square": "FN31", "callsign": "K1ABC", "mode": "USB", "comment": "Test log entry", "recording_duration": 120.5}' 
 *#get logs : curl -X GET 'http://localhost:3000/logs?limit=10&mode=FT8&grid=FN31'
 *#health check : curl -X GET http://localhost:3000/health
 */

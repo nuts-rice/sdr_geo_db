@@ -1,0 +1,38 @@
+[package]
+name = "sdr_db_status"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sdr_db_status"
+path = "src/main.rs"
+
+[dependencies]
+# Embedded graphics core
+embedded-graphics = "0.8"
+embedded-text = "0.7"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async runtime and HTTP client
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+
+# System metrics
+sysinfo = "0.32"
+
+# Simulator (optional for development/testing)
+embedded-graphics-simulator = { version = "0.6", optional = true }
+
+[features]
+default = ["simulator"]
+simulator = ["embedded-graphics-simulator"]
+hardware = []
