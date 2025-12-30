@@ -1,4 +1,5 @@
-FROM rust:1.92-slim as builder
+
+FROM rust:1.92.0-slim-bookworm as builder
 
 RUN apt-get update && apt-get install -y \
     libpq-dev \
@@ -6,11 +7,12 @@ RUN apt-get update && apt-get install -y \
     libsoapysdr-dev \
     libclang-dev \
     clang \
+    postgresql-17 postgresql-contrib postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 
 COPY src ./src
 COPY migrations ./migrations
