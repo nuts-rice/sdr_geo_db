@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y \
     libsoapysdr-dev \
     libclang-dev \
     clang \
-    postgresql-17 postgresql-contrib postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
