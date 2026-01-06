@@ -48,44 +48,6 @@ impl Config {
     }
 }
 
-#[derive(Serialize)]
-struct LogResponse {
-    id: i32,
-    frequency: f32,
-    grid: Option<String>,
-    callsign: Option<String>,
-    mode: String,
-    comment: Option<String>,
-    timestamp: String,
-    recording_duration: f32,
-}
-
-impl From<Log> for LogResponse {
-    fn from(log: Log) -> Self {
-        let timestamp = log.timestamp_utc().to_rfc3339();
-        LogResponse {
-            id: log.id,
-            frequency: log.frequency,
-            grid: log.grid,
-            callsign: log.callsign,
-            mode: log.mode,
-            comment: log.comment,
-            timestamp,
-            recording_duration: log.recording_duration,
-        }
-    }
-}
-
-#[derive(Serialize)]
-struct LogsResponse {
-    logs: Vec<LogResponse>,
-    count: usize,
-}
-
-#[derive(Serialize)]
-struct ErrorResponse {
-    error: String,
-}
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -237,7 +199,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    // Load configuration
     let config = Config::from_env()?;
     info!("Starting API server on port {}", config.port);
     info!("Allowed origins: {:?}", config.allowed_origins);
@@ -248,7 +209,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Database pool created");
 
-    // Configure CORS
     let cors = CorsLayer::new()
         .allow_origin(
             config

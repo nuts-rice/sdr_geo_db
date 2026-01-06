@@ -2,7 +2,7 @@ use diesel::{Connection, PgConnection};
 use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Borders, Paragraph};
-use sdr_db::Log;
+use sdr_db::{AppState, Log};
 use sdr_db::create_log;
 use sdr_db::model::log::render_log;
 use sdr_db::tabs::{SelectedTab, create_log::NewLogInputForm, spectrum_view::SpectrumViewerState};

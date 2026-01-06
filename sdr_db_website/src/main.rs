@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    Frame, Terminal, DefaultTerminal
+    Frame, Terminal,
 };
 
 use ratzilla::{
@@ -12,8 +12,10 @@ use ratzilla::{
     DomBackend, WebRenderer,
 };
 
-use sdr_db::{LogFormData, SignalMode, };
+use sdr_db::{LogFormData, SignalMode};
+pub mod api_client;
 pub mod components;
+
 use components::geolocate_gridsquare;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FormField {
@@ -67,8 +69,6 @@ impl FormField {
 }
 
 fn main() -> io::Result<()> {
-    let database_url = dotenvy::var("DATABASE_URL").expect("DATABASE_URL must be set ");
-    
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
     let state = Rc::new(App::default());
@@ -88,6 +88,7 @@ fn main() -> io::Result<()> {
 
 #[derive(Default)]
 struct App {
+    base_url: RefCell<String>,
     form_data: RefCell<LogFormData>,
     frequency_input: RefCell<String>,
     grid_square_input: RefCell<String>,
@@ -96,23 +97,9 @@ struct App {
     duration_input: RefCell<String>,
     selected_field: RefCell<FormField>,
     status_message: RefCell<Option<String>>,
-    state: RefCell<AppState>,
 }
 
-
 impl App {
-
-    fn run(mut self, terminal: &mut DefaultTerminal, database_url: &str) -> io::Result<()> {
-        while self.state == AppState::Running {
-            let conn = &mut PgConnection::establish(database_url)?;
-        
-        loop {
-            terminal.draw_web(move |frame| {
-                app_rc.render(frame);
-            })?;
-        }
-    }
-    }
     fn render(&self, frame: &mut Frame) {
         use ratatui::widgets::*;
 
@@ -233,7 +220,7 @@ impl App {
                 };
             }
             KeyCode::Enter => {
-                self.submit_form();
+                self.submit_form(self.base_url.borrow().as_str());
             }
             KeyCode::Esc => {
                 self.clear_form();
@@ -329,32 +316,46 @@ impl App {
         };
     }
 
-    fn submit_form(&self) {
-        let freq: Result<f32, _> = self.frequency_input.borrow().parse();
-        let dur: Result<f32, _> = self.duration_input.borrow().parse();
+    async fn submit_form(&self, base_url: &str) {
+        let frequency = self.frequency_input.borrow().trim().to_string();
+        let grid_square = self.grid_square_input.borrow().trim().to_string();
+        let callsign = self.callsign_input.borrow().trim().to_string();
+        let comment = self.comment_input.borrow().trim().to_string();
+        let duration_str = self.duration_input.borrow().trim().to_string();
 
-        match (freq, dur) {
-            (Ok(frequency), Ok(duration)) => {
-                let mut form = self.form_data.borrow_mut();
-                form.frequency = frequency;
-                form.grid_square = self.grid_square_input.borrow().clone();
-                form.callsign = self.callsign_input.borrow().clone();
-                form.comment = self.comment_input.borrow().clone();
-                form.recording_duration = duration;
-
-                match form.validate() {
-                    Ok(_) => {
-                        *self.status_message.borrow_mut() =
-                            Some("✓ Form validated! )".to_string());
-                    }
-                    Err(e) => {
-                        *self.status_message.borrow_mut() = Some(format!("✗ Error: {}", e));
-                    }
-                }
-            }
-            _ => {
+        let frequency: f32 = match frequency.parse() {
+            Ok(freq) => freq,
+            Err(_) => {
                 *self.status_message.borrow_mut() =
-                    Some("✗ Invalid input: check numeric fields".to_string());
+                    Some("✗ Invalid frequency; must be a number".to_string());
+                return;
+            }
+        };
+
+        let duration: f32 = match duration_str.parse() {
+            Ok(dur) => dur,
+            Err(_) => {
+                *self.status_message.borrow_mut() =
+                    Some("✗ Invalid duration; must be a number".to_string());
+                return;
+            }
+        };
+
+        let mut form = self.form_data.borrow_mut();
+        form.frequency = frequency;
+        form.grid_square = grid_square;
+        form.callsign = callsign;
+        form.comment = comment;
+        form.recording_duration = duration;
+
+        match api_client::create_log_async(base_url, form.clone()).await {
+            Ok(_) => {
+                *self.status_message.borrow_mut() =
+                    Some("✓ Log entry submitted successfully".to_string());
+                self.clear_form();
+            }
+            Err(e) => {
+                *self.status_message.borrow_mut() = Some(format!("✗ Submission failed: {}", e));
             }
         }
     }
