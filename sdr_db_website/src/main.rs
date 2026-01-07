@@ -13,6 +13,9 @@ use ratzilla::{
 };
 
 use sdr_db::{LogFormData, SignalMode};
+use wasm_bindgen_futures::spawn_local;
+use web_sys::window;
+
 pub mod api_client;
 pub mod components;
 
@@ -209,6 +212,19 @@ impl App {
         }
     }
 
+
+  fn get_api_base_url() -> String {
+      let window = window().expect("should have a window");
+      let location = window.location();
+      let hostname = location.hostname().unwrap_or_default();
+
+      if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
+          "http://localhost:3000".to_string()
+      } else {
+          "https://sdr-db-api.fly.dev".to_string()
+      }
+  }
+
     fn handle_events(&self, key_event: KeyEvent, app_rc: &Rc<Self>) {
         match key_event.code {
             KeyCode::Tab => {
@@ -220,7 +236,12 @@ impl App {
                 };
             }
             KeyCode::Enter => {
-                self.submit_form(self.base_url.borrow().as_str());
+                *self.status_message.borrow_mut() = Some("Submitting...".to_string());
+                let app_rc = Rc::clone(app_rc);
+                spawn_local(async move {
+                    app_rc.submit_form(app_rc.base_url.borrow().as_str()).await;
+                });
+
             }
             KeyCode::Esc => {
                 self.clear_form();
