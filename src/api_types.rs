@@ -29,12 +29,12 @@ impl From<Log> for LogResponse {
 }
 
 #[derive(Serialize)]
-struct LogsResponse {
-    logs: Vec<LogResponse>,
-    count: usize,
+pub struct LogsResponse {
+    pub logs: Vec<LogResponse>,
+    pub count: usize,
 }
 
 #[derive(Serialize)]
-struct ErrorResponse {
-    error: String,
+pub struct ErrorResponse {
+    pub error: String,
 }

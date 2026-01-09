@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use sdr_db::api_types::{ErrorResponse, LogsResponse, LogResponse};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use serde::{Deserialize, Serialize};
