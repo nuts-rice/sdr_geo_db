@@ -74,7 +74,7 @@ impl FormField {
 fn main() -> io::Result<()> {
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
-    let state = Rc::new(App::default());
+    let state = Rc::new(App::new(App::get_api_base_url()));
 
     let event_state = Rc::clone(&state);
     terminal.on_key_event(move |key_event| {
@@ -89,9 +89,8 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-#[derive(Default)]
 struct App {
-    base_url: RefCell<String>,
+    base_url: String,
     form_data: RefCell<LogFormData>,
     frequency_input: RefCell<String>,
     grid_square_input: RefCell<String>,
@@ -103,6 +102,19 @@ struct App {
 }
 
 impl App {
+    fn new(base_url: String) -> Self {
+        Self {
+            base_url,
+            form_data: RefCell::new(LogFormData::default()),
+            frequency_input: RefCell::new(String::new()),
+            grid_square_input: RefCell::new(String::new()),
+            callsign_input: RefCell::new(String::new()),
+            comment_input: RefCell::new(String::new()),
+            duration_input: RefCell::new(String::new()),
+            selected_field: RefCell::new(FormField::default()),
+            status_message: RefCell::new(None),
+        }
+    }
     fn render(&self, frame: &mut Frame) {
         use ratatui::widgets::*;
 
@@ -212,18 +224,17 @@ impl App {
         }
     }
 
+    fn get_api_base_url() -> String {
+        let window = window().expect("should have a window");
+        let location = window.location();
+        let hostname = location.hostname().unwrap_or_default();
 
-  fn get_api_base_url() -> String {
-      let window = window().expect("should have a window");
-      let location = window.location();
-      let hostname = location.hostname().unwrap_or_default();
-
-      if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
-          "http://localhost:3000".to_string()
-      } else {
-          "https://sdr-db-api.fly.dev".to_string()
-      }
-  }
+        if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
+            "http://localhost:3000/api".to_string()
+        } else {
+            "https://sdr-db-api.fly.dev".to_string()
+        }
+    }
 
     fn handle_events(&self, key_event: KeyEvent, app_rc: &Rc<Self>) {
         match key_event.code {
@@ -236,12 +247,12 @@ impl App {
                 };
             }
             KeyCode::Enter => {
-                *self.status_message.borrow_mut() = Some("Submitting...".to_string());
                 let app_rc = Rc::clone(app_rc);
-                spawn_local(async move {
-                    app_rc.submit_form(app_rc.base_url.borrow().as_str()).await;
-                });
 
+                spawn_local(async move {
+                    app_rc.submit_form(&app_rc.base_url);
+                });
+                *self.status_message.borrow_mut() = Some("Submitting...".to_string());
             }
             KeyCode::Esc => {
                 self.clear_form();
@@ -368,8 +379,9 @@ impl App {
         form.callsign = callsign;
         form.comment = comment;
         form.recording_duration = duration;
+        let url = format!("{}/logs", base_url);
 
-        match api_client::create_log_async(base_url, form.clone()).await {
+        match api_client::create_log_async(&url, form.clone()).await {
             Ok(_) => {
                 *self.status_message.borrow_mut() =
                     Some("✓ Log entry submitted successfully".to_string());
