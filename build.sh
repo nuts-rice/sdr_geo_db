@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
@@ -13,7 +12,6 @@ if ! command -v rustup &> /dev/null; then
     source "$HOME/.cargo/env"
 else
     echo "Rust already installed"
-    # Source cargo environment if it exists
     if [ -f "$HOME/.cargo/env" ]; then
         source "$HOME/.cargo/env"
     fi
@@ -37,9 +35,28 @@ else
     echo "Trunk already installed: $(trunk --version)"
 fi
 
-# Build the project
 echo "Building project with trunk..."
 cd ./sdr_db_website/
 trunk build --release
 
 echo "Build complete! Output in $SCRIPT_DIR/dist"
+
+ARGO_OS="darwin"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  ARGO_OS="linux"
+fi
+
+# Download the binary
+curl -sLO "https://github.com/argoproj/argo-workflows/releases/download/v4.0.0-rc2/argo-$ARGO_OS-amd64.gz"
+
+# Unzip
+gunzip "argo-$ARGO_OS-amd64.gz"
+
+# Make binary executable
+chmod +x "argo-$ARGO_OS-amd64"
+
+# Move binary to path
+mv "./argo-$ARGO_OS-amd64" /usr/local/bin/argo
+
+# Test installation
+argo version
