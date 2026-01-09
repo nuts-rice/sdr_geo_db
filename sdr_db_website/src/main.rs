@@ -228,6 +228,7 @@ impl App {
         let window = window().expect("should have a window");
         let location = window.location();
         let hostname = location.hostname().unwrap_or_default();
+        web_sys::console::log_1(&format!("Hostname: {}", hostname).into());
 
         if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
             "http://localhost:3000/api".to_string()
@@ -247,12 +248,17 @@ impl App {
                 };
             }
             KeyCode::Enter => {
+                web_sys::console::log_1(&"Enter pressed".into());
+                *self.status_message.borrow_mut() = Some("Submitting...".to_string());
+
                 let app_rc = Rc::clone(app_rc);
 
                 spawn_local(async move {
+                    web_sys::console::log_1(&"Inside async block".into());
                     app_rc.submit_form(&app_rc.base_url);
+                    web_sys::console::log_1(&"After submit form".into());
+
                 });
-                *self.status_message.borrow_mut() = Some("Submitting...".to_string());
             }
             KeyCode::Esc => {
                 self.clear_form();
@@ -349,6 +355,7 @@ impl App {
     }
 
     async fn submit_form(&self, base_url: &str) {
+        web_sys::console::log_1(&format!("submit_form called with base_url: {}", base_url).into());
         let frequency = self.frequency_input.borrow().trim().to_string();
         let grid_square = self.grid_square_input.borrow().trim().to_string();
         let callsign = self.callsign_input.borrow().trim().to_string();
@@ -380,6 +387,7 @@ impl App {
         form.comment = comment;
         form.recording_duration = duration;
         let url = format!("{}/logs", base_url);
+        web_sys::console::log_1(&format!("About to call api : {}", url).into());
 
         match api_client::create_log_async(&url, form.clone()).await {
             Ok(_) => {
