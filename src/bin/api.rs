@@ -5,9 +5,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sdr_db::api_types::{ErrorResponse, LogsResponse, LogResponse};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
+use sdr_db::api_types::{ErrorResponse, LogResponse, LogsResponse};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tower_http::cors::{Any, CorsLayer};
