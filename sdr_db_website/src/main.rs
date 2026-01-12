@@ -12,6 +12,7 @@ use ratzilla::{
     DomBackend, WebRenderer,
 };
 
+use gloo_timers::future::TimeoutFuture;
 use sdr_db::{LogFormData, SignalMode};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::window;
@@ -115,6 +116,7 @@ impl App {
             status_message: RefCell::new(None),
         }
     }
+
     fn render(&self, frame: &mut Frame) {
         use ratatui::widgets::*;
 
@@ -148,6 +150,12 @@ impl App {
                 .fg(Color::Yellow)
                 .alignment(Alignment::Center);
             frame.render_widget(status, chunks[2]);
+            // TODO: auto-clear after delay
+        } else {
+            let status = Paragraph::new(" ")
+                .block(Block::default().borders(Borders::ALL).title("Status"));
+            frame.render_widget(status, chunks[2]);
+
         }
 
         // Help
@@ -209,18 +217,35 @@ impl App {
         frame.render_widget(list, area);
     }
 
+    
+
+    fn set_status_with_auto_clear(self: &Rc<Self>, message: String, delay_ms: u32) {
+        *self.status_message.borrow_mut() = Some(message);
+
+        let app = Rc::clone(self);
+        spawn_local(async move {
+            TimeoutFuture::new(delay_ms).await;
+            *app.status_message.borrow_mut() = None;
+        });
+    }
+
     fn request_geolocation(self: &Rc<Self>) {
         if let Some(geolocation) = geolocate_gridsquare::get_geolocation() {
+            self.set_status_with_auto_clear("Requesting location...".to_string(), 2000);
             let app = Rc::clone(self);
             geolocate_gridsquare::request_gridsquare(&geolocation, move |gridsquare| {
                 *app.grid_square_input.borrow_mut() = gridsquare.clone();
-                *app.status_message.borrow_mut() =
-                    Some(format!("✓ Location detected: {}", gridsquare));
+                app.set_status_with_auto_clear(
+                    format!("✓ Grid square set to {}", gridsquare),
+                    3000,
+                );
             });
+
             *self.status_message.borrow_mut() = Some("Requesting location...".to_string());
+
+            //std::thread::sleep(std::time::Duration::from_secs(2));
         } else {
-            *self.status_message.borrow_mut() =
-                Some("✗ Geolocation not available in this browser".to_string());
+            self.set_status_with_auto_clear("✗ Geolocation not available".to_string(), 3000);
         }
     }
 
@@ -253,7 +278,6 @@ impl App {
 
                 spawn_local(async move {
                     app_rc.submit_form(&app_rc.base_url).await;
-
                 });
             }
             KeyCode::Esc => {
@@ -360,8 +384,6 @@ impl App {
         let frequency: f32 = match frequency.parse() {
             Ok(freq) => freq,
             Err(_) => {
-                *self.status_message.borrow_mut() =
-                    Some("✗ Invalid frequency; must be a number".to_string());
                 return;
             }
         };
@@ -369,8 +391,8 @@ impl App {
         let duration: f32 = match duration_str.parse() {
             Ok(dur) => dur,
             Err(_) => {
-                *self.status_message.borrow_mut() =
-                    Some("✗ Invalid duration; must be a number".to_string());
+                //TODO: auto-clear here
+                *self.status_message.borrow_mut() = Some("✗ Invalid duration".to_string());
                 return;
             }
         };
@@ -385,8 +407,8 @@ impl App {
 
         match api_client::create_log_async(&url, form.clone()).await {
             Ok(_) => {
-                *self.status_message.borrow_mut() =
-                    Some("✓ Log entry submitted successfully".to_string());
+                //TODO: auto-clear here
+                *self.status_message.borrow_mut() = Some("✓ Submission successful".to_string());
                 self.clear_form();
             }
             Err(e) => {
@@ -402,6 +424,6 @@ impl App {
         *self.comment_input.borrow_mut() = String::new();
         *self.duration_input.borrow_mut() = String::new();
         *self.form_data.borrow_mut() = LogFormData::default();
-        *self.status_message.borrow_mut() = Some("Form cleared".to_string());
+        *self.status_message.borrow_mut() = None;
     }
 }
