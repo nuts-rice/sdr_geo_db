@@ -150,7 +150,6 @@ impl App {
                 .fg(Color::Yellow)
                 .alignment(Alignment::Center);
             frame.render_widget(status, chunks[2]);
-            // TODO: auto-clear after delay
         } else {
             let status = Paragraph::new(" ")
                 .block(Block::default().borders(Borders::ALL).title("Status"));
@@ -163,8 +162,14 @@ impl App {
             Span::raw("Tab/Shift+Tab: Navigate | "),
             Span::raw("Enter: Submit | "),
             Span::raw("G: Geolocate | "),
-            Span::raw("Esc: Clear"),
+            Span::raw("Esc: Clear |                                                                                "),
+            Span::raw("Made with 🦀💜🦀 in Colorado. ")
         ]);
+
+        //Footer
+        let footer = Paragraph::new(help.clone())
+            .block(Block::default().borders(Borders::ALL).title("Help"))
+            .alignment(Alignment::Center);
         frame.render_widget(help, chunks[3]);
     }
 
