@@ -9,25 +9,26 @@ db = ["diesel", "dotenvy"]
 sdr = ["soapysdr"]
 native-ui = ["crossterm", "tui-input/crossterm", "tui-prompts", "tui-textarea", "tui"]
 wasm = []
+api = ["axum", "tower", "tower-http", "serde_json", "thiserror", "db"]
 
 [dependencies]
 # Database dependencies (native only)
-diesel = { version = "2.3.2", features = ["postgres", "chrono"], optional = true }
+diesel = { version = "2.3.2", features = ["postgres", "chrono", "r2d2"], optional = true }
 sled = "0.34.7"
 dotenvy = { version = "0.15.7", optional = true }
 
 # Core dependencies (WASM compatible)
 tracing = "0.1.41"
-tracing-subscriber = "0.3.20"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 geo-types = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5.48", features = ["derive", "env"] }
 geo = "0.31.0"
-tokio = { version = "1.48.0", features = ["sync"] }
 ratatui = { version = "0.29.0", default-features = false }
-color-eyre = "0.6.5"
 strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
+crossterm = { version = "0.29.0", optional = true }
+color-eyre = "0.6.5"
 catppuccin = "2.6.0"
 async-trait = "0.1.89"
 num-complex = "0.4.6"
@@ -37,11 +38,30 @@ ratzilla = "0.2.0"
 soapysdr = { version = "0.4.2", optional = true }
 
 # Native UI dependencies
-crossterm = { version = "0.29.0", optional = true }
 tui-input = { version = "0.14.0", default-features = false, optional = true }
 tui-prompts = { version = "0.5.0", optional = true }
 tui-textarea = { version = "0.7.0", optional = true }
 tui = { version = "0.19.0", optional = true }
+
+# API server dependencies
+axum = { version = "0.7", optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["cors"], optional = true }
+serde_json = { version = "1.0", optional = true }
+thiserror = { version = "1.0", optional = true }
+
+
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.48.0", features = ["sync", "rt-multi-thread", "macros"] }
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.48.0", features = ["sync", "macros"] }
+
+
+[[bin]]
+name = "api"
+path = "src/bin/api.rs"
+required-features = ["api"]
 
 [dev-dependencies]
 proptest = "1.4"

@@ -1,10 +1,9 @@
 use std::{cell::RefCell, io, rc::Rc};
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Layout},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, Paragraph},
     Frame, Terminal,
 };
 
@@ -13,11 +12,14 @@ use ratzilla::{
     DomBackend, WebRenderer,
 };
 
+use gloo_timers::future::TimeoutFuture;
 use sdr_db::{LogFormData, SignalMode};
-use yew::prelude::*;
-use yew_hooks::prelude::*;
+use wasm_bindgen_futures::spawn_local;
+use web_sys::window;
 
+pub mod api_client;
 pub mod components;
+
 use components::geolocate_gridsquare;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FormField {
@@ -73,7 +75,7 @@ impl FormField {
 fn main() -> io::Result<()> {
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
-    let state = Rc::new(App::default());
+    let state = Rc::new(App::new(App::get_api_base_url()));
 
     let event_state = Rc::clone(&state);
     terminal.on_key_event(move |key_event| {
@@ -88,8 +90,8 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-#[derive(Default)]
 struct App {
+    base_url: String,
     form_data: RefCell<LogFormData>,
     frequency_input: RefCell<String>,
     grid_square_input: RefCell<String>,
@@ -101,6 +103,20 @@ struct App {
 }
 
 impl App {
+    fn new(base_url: String) -> Self {
+        Self {
+            base_url,
+            form_data: RefCell::new(LogFormData::default()),
+            frequency_input: RefCell::new(String::new()),
+            grid_square_input: RefCell::new(String::new()),
+            callsign_input: RefCell::new(String::new()),
+            comment_input: RefCell::new(String::new()),
+            duration_input: RefCell::new(String::new()),
+            selected_field: RefCell::new(FormField::default()),
+            status_message: RefCell::new(None),
+        }
+    }
+
     fn render(&self, frame: &mut Frame) {
         use ratatui::widgets::*;
 
@@ -134,6 +150,12 @@ impl App {
                 .fg(Color::Yellow)
                 .alignment(Alignment::Center);
             frame.render_widget(status, chunks[2]);
+            // TODO: auto-clear after delay
+        } else {
+            let status = Paragraph::new(" ")
+                .block(Block::default().borders(Borders::ALL).title("Status"));
+            frame.render_widget(status, chunks[2]);
+
         }
 
         // Help
@@ -195,18 +217,47 @@ impl App {
         frame.render_widget(list, area);
     }
 
+    
+
+    fn set_status_with_auto_clear(self: &Rc<Self>, message: String, delay_ms: u32) {
+        *self.status_message.borrow_mut() = Some(message);
+
+        let app = Rc::clone(self);
+        spawn_local(async move {
+            TimeoutFuture::new(delay_ms).await;
+            *app.status_message.borrow_mut() = None;
+        });
+    }
+
     fn request_geolocation(self: &Rc<Self>) {
         if let Some(geolocation) = geolocate_gridsquare::get_geolocation() {
+            self.set_status_with_auto_clear("Requesting location...".to_string(), 2000);
             let app = Rc::clone(self);
             geolocate_gridsquare::request_gridsquare(&geolocation, move |gridsquare| {
                 *app.grid_square_input.borrow_mut() = gridsquare.clone();
-                *app.status_message.borrow_mut() =
-                    Some(format!("✓ Location detected: {}", gridsquare));
+                app.set_status_with_auto_clear(
+                    format!("✓ Grid square set to {}", gridsquare),
+                    3000,
+                );
             });
+
             *self.status_message.borrow_mut() = Some("Requesting location...".to_string());
+
+            //std::thread::sleep(std::time::Duration::from_secs(2));
         } else {
-            *self.status_message.borrow_mut() =
-                Some("✗ Geolocation not available in this browser".to_string());
+            self.set_status_with_auto_clear("✗ Geolocation not available".to_string(), 3000);
+        }
+    }
+
+    fn get_api_base_url() -> String {
+        let window = window().expect("should have a window");
+        let location = window.location();
+        let hostname = location.hostname().unwrap_or_default();
+
+        if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
+            "http://localhost:3000".to_string()
+        } else {
+            "https://sdr-db-api.fly.dev".to_string()
         }
     }
 
@@ -221,7 +272,13 @@ impl App {
                 };
             }
             KeyCode::Enter => {
-                self.submit_form();
+                *self.status_message.borrow_mut() = Some("Submitting...".to_string());
+
+                let app_rc = Rc::clone(app_rc);
+
+                spawn_local(async move {
+                    app_rc.submit_form(&app_rc.base_url).await;
+                });
             }
             KeyCode::Esc => {
                 self.clear_form();
@@ -317,32 +374,45 @@ impl App {
         };
     }
 
-    fn submit_form(&self) {
-        let freq: Result<f32, _> = self.frequency_input.borrow().parse();
-        let dur: Result<f32, _> = self.duration_input.borrow().parse();
+    async fn submit_form(&self, base_url: &str) {
+        let frequency = self.frequency_input.borrow().trim().to_string();
+        let grid_square = self.grid_square_input.borrow().trim().to_string();
+        let callsign = self.callsign_input.borrow().trim().to_string();
+        let comment = self.comment_input.borrow().trim().to_string();
+        let duration_str = self.duration_input.borrow().trim().to_string();
 
-        match (freq, dur) {
-            (Ok(frequency), Ok(duration)) => {
-                let mut form = self.form_data.borrow_mut();
-                form.frequency = frequency;
-                form.grid_square = self.grid_square_input.borrow().clone();
-                form.callsign = self.callsign_input.borrow().clone();
-                form.comment = self.comment_input.borrow().clone();
-                form.recording_duration = duration;
-
-                match form.validate() {
-                    Ok(_) => {
-                        *self.status_message.borrow_mut() =
-                            Some("✓ Form validated! (API submission TODO)".to_string());
-                    }
-                    Err(e) => {
-                        *self.status_message.borrow_mut() = Some(format!("✗ Error: {}", e));
-                    }
-                }
+        let frequency: f32 = match frequency.parse() {
+            Ok(freq) => freq,
+            Err(_) => {
+                return;
             }
-            _ => {
-                *self.status_message.borrow_mut() =
-                    Some("✗ Invalid input: check numeric fields".to_string());
+        };
+
+        let duration: f32 = match duration_str.parse() {
+            Ok(dur) => dur,
+            Err(_) => {
+                //TODO: auto-clear here
+                *self.status_message.borrow_mut() = Some("✗ Invalid duration".to_string());
+                return;
+            }
+        };
+
+        let mut form = self.form_data.borrow_mut();
+        form.frequency = frequency;
+        form.grid_square = grid_square;
+        form.callsign = callsign;
+        form.comment = comment;
+        form.recording_duration = duration;
+        let url = format!("{}/logs", base_url);
+
+        match api_client::create_log_async(&url, form.clone()).await {
+            Ok(_) => {
+                //TODO: auto-clear here
+                *self.status_message.borrow_mut() = Some("✓ Submission successful".to_string());
+                self.clear_form();
+            }
+            Err(e) => {
+                *self.status_message.borrow_mut() = Some(format!("✗ Submission failed: {}", e));
             }
         }
     }
@@ -354,6 +424,6 @@ impl App {
         *self.comment_input.borrow_mut() = String::new();
         *self.duration_input.borrow_mut() = String::new();
         *self.form_data.borrow_mut() = LogFormData::default();
-        *self.status_message.borrow_mut() = Some("Form cleared".to_string());
+        *self.status_message.borrow_mut() = None;
     }
 }

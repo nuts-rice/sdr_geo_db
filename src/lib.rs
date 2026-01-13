@@ -1,6 +1,8 @@
 #[cfg(feature = "db")]
 use diesel::prelude::*;
 
+pub mod api_types;
+
 pub mod error;
 pub mod form;
 pub mod maidenhead;
