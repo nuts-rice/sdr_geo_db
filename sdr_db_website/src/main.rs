@@ -381,7 +381,7 @@ impl App {
         if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
             "http://localhost:3000".to_string()
         } else {
-            "https://sdr-db-api.fly.dev".to_string()
+            "https://opeth.taila716a3.ts.net/".to_string()
         }
     }
 
