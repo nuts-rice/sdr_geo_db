@@ -19,8 +19,19 @@ use web_sys::window;
 
 pub mod api_client;
 pub mod components;
+pub mod tabs;
+
+use tabs::view_logs::{create_table, create_header, ViewLogsState};    
 
 use components::geolocate_gridsquare;
+
+
+enum ActiveTab {
+    NewLog,
+    SpectrumView,  //Show as under construction
+    ViewLogs,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FormField {
     Frequency,
@@ -100,6 +111,8 @@ struct App {
     duration_input: RefCell<String>,
     selected_field: RefCell<FormField>,
     status_message: RefCell<Option<String>>,
+    active_tab: RefCell<ActiveTab>,
+    view_log_state: RefCell<ViewLogsState>,
 }
 
 impl App {
@@ -114,6 +127,8 @@ impl App {
             duration_input: RefCell::new(String::new()),
             selected_field: RefCell::new(FormField::default()),
             status_message: RefCell::new(None),
+            active_tab: RefCell::new(ActiveTab::NewLog),
+            view_log_state: RefCell::new(ViewLogsState::new()),
         }
     }
 
@@ -121,15 +136,39 @@ impl App {
         use ratatui::widgets::*;
 
         let chunks = Layout::vertical([
+            Constraint::Length(3), // Tabs
             Constraint::Length(3), // Title
-            Constraint::Min(0),    // Form
+            Constraint::Min(0),    // Content
             Constraint::Length(3), // Status
             Constraint::Length(1), // Help
         ])
         .split(frame.area());
 
-        // Title
-        let title = Paragraph::new("SDR Database - New Log Entry")
+        // Tab bar
+        let tabs = vec!["New Log", "Spectrum View", "View Logs"];
+        let tab_titles: Vec<Span> = tabs
+            .iter()
+            .map(|t| Span::styled(*t, Style::default().fg(Color::Cyan)))
+            .collect();
+        let active_tab_idx = match *self.active_tab.borrow() {
+            ActiveTab::NewLog => 0,
+            ActiveTab::SpectrumView => 1,
+            ActiveTab::ViewLogs => 2,
+        };
+        let tabs_widget = Tabs::new(tab_titles)
+            .select(active_tab_idx)
+            .block(Block::default().borders(Borders::ALL).title("Tabs"))
+            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .divider(Span::raw("|"));
+        frame.render_widget(tabs_widget, chunks[0]);
+
+        // Title (changes per tab)
+        let title_text = match *self.active_tab.borrow() {
+            ActiveTab::NewLog => "SDR Database - New Log Entry",
+            ActiveTab::SpectrumView => "SDR Database - Spectrum View",
+            ActiveTab::ViewLogs => "SDR Database - View Logs",
+        };
+        let title = Paragraph::new(title_text)
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -138,39 +177,59 @@ impl App {
             .alignment(Alignment::Center)
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD);
-        frame.render_widget(title, chunks[0]);
+        frame.render_widget(title, chunks[1]);
 
-        // Form
-        self.render_form(frame, chunks[1]);
-
-        // Status
-        if let Some(ref msg) = *self.status_message.borrow() {
-            let status = Paragraph::new(msg.as_str())
-                .block(Block::default().borders(Borders::ALL).title("Status"))
-                .fg(Color::Yellow)
-                .alignment(Alignment::Center);
-            frame.render_widget(status, chunks[2]);
-        } else {
-            let status = Paragraph::new(" ")
-                .block(Block::default().borders(Borders::ALL).title("Status"));
-            frame.render_widget(status, chunks[2]);
-
+        // Content (switches based on active tab)
+        match *self.active_tab.borrow() {
+            ActiveTab::NewLog => {
+                self.render_form(frame, chunks[2]);
+            }
+            ActiveTab::SpectrumView => {
+                self.render_under_construction(frame, chunks[2]);
+            }
+            ActiveTab::ViewLogs => {
+                self.render_logs_table(frame, chunks[2]);
+            }
         }
 
-        // Help
-        let help = Line::from(vec![
-            Span::raw("Tab/Shift+Tab: Navigate | "),
-            Span::raw("Enter: Submit | "),
-            Span::raw("G: Geolocate | "),
-            Span::raw("Esc: Clear |                                                                                "),
-            Span::raw("Made with 🦀💜🦀 in Colorado. ")
-        ]);
-
-        //Footer
-        let footer = Paragraph::new(help.clone())
-            .block(Block::default().borders(Borders::ALL).title("Help"))
+        // Status (contextual per tab)
+        let (status_title, status_msg, status_color) = match *self.active_tab.borrow() {
+            ActiveTab::NewLog => {
+                let msg = self.status_message.borrow().clone().unwrap_or_default();
+                ("Status", msg, Color::Yellow)
+            }
+            ActiveTab::ViewLogs => {
+                let state = self.view_log_state.borrow();
+                let count = state.logs.len();
+                let selected = state.selected_index + 1;
+                let msg = if count == 0 {
+                    "No logs loaded • Press R to refresh".to_string()
+                } else {
+                    format!("📋 {} logs loaded • Viewing {}/{}", count, selected, count)
+                };
+                ("Logs", msg, Color::Cyan)
+            }
+            ActiveTab::SpectrumView => {
+                ("Info", "🚧 Coming soon...".to_string(), Color::Magenta)
+            }
+        };
+        let status = Paragraph::new(status_msg)
+            .block(Block::default().borders(Borders::ALL).title(status_title))
+            .fg(status_color)
             .alignment(Alignment::Center);
-        frame.render_widget(help, chunks[3]);
+        frame.render_widget(status, chunks[3]);
+
+        // Help (changes per tab)
+        let help_text = match *self.active_tab.borrow() {
+            ActiveTab::NewLog => "Tab: Navigate | Up/Down: Mode | Enter: Submit | G: Geolocate | ←/→: Tab | Esc: Clear",
+            ActiveTab::SpectrumView => "←/→: Change Tab | 🚧 Under Construction",
+            ActiveTab::ViewLogs => "↑/↓: Scroll | R: Refresh | ←/→: Tab | Enter: Details",
+        };
+        let help = Line::from(vec![
+            Span::raw(help_text),
+            Span::raw("  |                                                               Made with 🦀💜🦀 in Colorado"),
+        ]);
+        frame.render_widget(help, chunks[4]);
     }
 
     fn render_form(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
@@ -222,7 +281,50 @@ impl App {
         frame.render_widget(list, area);
     }
 
-    
+    fn render_under_construction(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        use ratatui::widgets::*;
+
+        let text = vec![
+            Line::from(""),
+            Line::from(Span::styled("🚧 Under Construction 🚧", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+            Line::from(""),
+            Line::from("Spectrum View coming soon!"),
+        ];
+
+        let paragraph = Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("Spectrum View"))
+            .alignment(Alignment::Center);
+
+        frame.render_widget(paragraph, area);
+    }
+
+    fn render_logs_table(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+        use ratatui::widgets::*;
+        use tabs::view_logs::TableTheme;
+
+        let state = self.view_log_state.borrow();
+        let theme = TableTheme::default();
+
+        if state.logs.is_empty() {
+            let text = vec![
+                Line::from(""),
+                Line::from("No logs loaded."),
+                Line::from(""),
+                Line::from(Span::styled("Press 'R' to refresh", Style::default().fg(Color::Yellow))),
+            ];
+            let paragraph = Paragraph::new(text)
+                .block(Block::default().borders(Borders::ALL).title("View Logs"))
+                .alignment(Alignment::Center);
+            frame.render_widget(paragraph, area);
+            return;
+        }
+
+        let header = create_header(&theme);
+        let rows = tabs::view_logs::create_rows(&state, &theme);
+        let table = create_table(header, rows, &theme);
+
+        frame.render_widget(table, area);
+    }
 
     fn set_status_with_auto_clear(self: &Rc<Self>, message: String, delay_ms: u32) {
         *self.status_message.borrow_mut() = Some(message);
@@ -254,6 +356,23 @@ impl App {
         }
     }
 
+    fn fetch_logs(self: &Rc<Self>) {
+        let app = Rc::clone(self);
+        let url = format!("{}/logs", self.base_url);
+
+        spawn_local(async move {
+            match api_client::get_logs_async(&url).await {
+                Ok(logs) => {
+                    app.view_log_state.borrow_mut().refresh_logs(logs);
+                }
+                Err(e) => {
+                    // Could show error in status, but ViewLogs has its own status display
+                    web_sys::console::log_1(&format!("Failed to fetch logs: {:?}", e).into());
+                }
+            }
+        });
+    }
+
     fn get_api_base_url() -> String {
         let window = window().expect("should have a window");
         let location = window.location();
@@ -276,6 +395,9 @@ impl App {
                     selected.next()
                 };
             }
+            KeyCode::Left | KeyCode::Right => {
+                self.cycle_tabs(key_event.code == KeyCode::Left);
+            }
             KeyCode::Enter => {
                 *self.status_message.borrow_mut() = Some("Submitting...".to_string());
 
@@ -293,10 +415,23 @@ impl App {
             }
             KeyCode::Char(c) => match c.to_ascii_lowercase() {
                 'g' => app_rc.request_geolocation(),
+                'r' => {
+                    if matches!(*self.active_tab.borrow(), ActiveTab::ViewLogs) {
+                        app_rc.fetch_logs();
+                    }
+                }
                 _ => self.handle_char_input(c),
             },
             KeyCode::Up | KeyCode::Down => {
-                if *self.selected_field.borrow() == FormField::Mode {
+                // Handle scroll in ViewLogs tab
+                if matches!(*self.active_tab.borrow(), ActiveTab::ViewLogs) {
+                    let mut state = self.view_log_state.borrow_mut();
+                    if key_event.code == KeyCode::Up {
+                        state.select_previous();
+                    } else {
+                        state.select_next();
+                    }
+                } else if *self.selected_field.borrow() == FormField::Mode {
                     self.cycle_mode(key_event.code == KeyCode::Up);
                 }
             }
@@ -314,6 +449,10 @@ impl App {
             FormField::RecordingDuration => self.duration_input.borrow_mut().push(c),
             FormField::Mode => {}
         }
+    }
+
+    fn handle_active_tab_change(&self, new_tab: ActiveTab) {
+        *self.active_tab.borrow_mut() = new_tab;
     }
 
     fn handle_backspace(&self) {
@@ -374,6 +513,33 @@ impl App {
                     SignalMode::LSB
                 } else {
                     SignalMode::FM
+                }
+            }
+        };
+    }
+
+    fn cycle_tabs(&self, reverse: bool) {
+        let mut active_tab = self.active_tab.borrow_mut();
+        *active_tab = match *active_tab {
+            ActiveTab::NewLog => {
+                if reverse {
+                    ActiveTab::ViewLogs
+                } else {
+                    ActiveTab::SpectrumView
+                }
+            }
+            ActiveTab::SpectrumView => {
+                if reverse {
+                    ActiveTab::NewLog
+                } else {
+                    ActiveTab::ViewLogs
+                }
+            }
+            ActiveTab::ViewLogs => {
+                if reverse {
+                    ActiveTab::SpectrumView
+                } else {
+                    ActiveTab::NewLog
                 }
             }
         };
