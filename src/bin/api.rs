@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{Query, State},
-    http::{Method, StatusCode},
+    http::{HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -217,7 +217,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .collect::<Vec<_>>(),
         )
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_origin("https://sdr-geo-db.vercel.app".parse::<HeaderValue>().unwrap())
+        .allow_origin(
+            "https://sdr-geo-db.vercel.app"
+                .parse::<HeaderValue>()
+                .unwrap(),
+        )
         .allow_headers(Any);
 
     let app = Router::new()
