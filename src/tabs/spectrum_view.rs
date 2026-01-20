@@ -36,6 +36,14 @@ impl SpectrumSource {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct FileSourceSelectState {
+    pub visible: bool,
+    pub input_path: String,
+    pub cursor_pos: usize,
+    pub error_message: Option<String>,
+}
+
 /*enum SelectedControl {
     Source,
     LNAGain,
@@ -46,13 +54,9 @@ impl SpectrumSource {
 /// State for the spectrum viewer tab
 #[derive(Debug, Clone)]
 pub struct SpectrumViewerState {
-    /// Selected data source
     pub source: SpectrumSource,
-    /// Center frequency in Hz
     pub center_frequency: f64,
-    /// Frequency span in Hz (total width of display)
     pub span: f64,
-    /// Frequency step for Up/Down navigation in Hz
     pub frequency_step: f64,
     /// Spectrum data: Vec of (frequency_hz, power_dbm)
     pub spectrum_data: Vec<(f64, f64)>,
@@ -60,13 +64,14 @@ pub struct SpectrumViewerState {
     pub lna_gain: usize,
     pub vga_gain: usize,
 
-    /// Time parameter for animated signal (in radians)
     pub time: f64,
 
-    /// Peak hold values: Vec of (frequency_hz, power_dbm)
+    /// Peak hold values: Vec (frequency_hz, power_dbm)
     pub peak_hold: Vec<(f64, f64)>,
 
     pub csv_source: Option<FileSpectrum>,
+
+    pub file_source_select: FileSourceSelectState,
 }
 
 impl Default for SpectrumViewerState {
@@ -82,6 +87,7 @@ impl Default for SpectrumViewerState {
             time: 0.0,
             peak_hold: Vec::new(),
             csv_source: FileSpectrum::from_csv("./recordings/sweep.csv".to_string()).ok(),
+            file_source_select: FileSourceSelectState::default(),
         };
         state.generate_sample_data();
         state
@@ -364,6 +370,28 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
         .style(Style::default().fg(Color::Gray));
 
     gain_paragraph.render(chunks[1], buf);
+}
+
+fn render_file_source_select_popup(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(Span::styled(
+            "Select File Source",
+            Style::default().fg(AMBER_BRIGHT),
+        ))
+        .border_style(Style::default().fg(AMBER_MID))
+        .style(Style::default().bg(Color::Black));
+
+    block.render(area, buf);
+
+    let instructions = Line::raw("File path of source file: ");
+    let instruction_area = Rect {
+        x: area.x + 2,
+        y: area.y + area.height - 2,
+        width: area.width - 4,
+        height: 1,
+    };
+    instructions.render(instruction_area, buf);
 }
 
 /// Render the spectrum viewer chart
