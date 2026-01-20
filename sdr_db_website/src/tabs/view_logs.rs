@@ -1,7 +1,7 @@
 use ratatui::{
     layout::Constraint,
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table, ScrollDirection},
+    widgets::{Block, Borders, Cell, Row, Table},
 };
 
 use sdr_db::api_types::LogResponse;
@@ -15,8 +15,6 @@ const ALT_ROW_COLOR: Color = Color::Rgb(20, 21, 29);
 // Column widths
 const COL_WIDTH_ID: u16 = 5;
 const COL_WIDTH_FREQUENCY: u16 = 12;
-const COL_WIDTH_LAT: u16 = 10;
-const COL_WIDTH_LON: u16 = 10;
 const COL_WIDTH_CALLSIGN: u16 = 12;
 const COL_WIDTH_MODE: u16 = 6;
 const COL_WIDTH_DURATION: u16 = 10;
@@ -41,7 +39,6 @@ impl Default for TableTheme {
         }
     }
 }
-
 
 #[derive(Debug, Default)]
 pub struct ViewLogsState {
@@ -118,21 +115,33 @@ impl ViewLogsState {
     pub fn selected_log(&self) -> Option<&LogResponse> {
         self.logs.get(self.selected_index)
     }
-
-
 }
 pub fn create_header(theme: &TableTheme) -> Row<'static> {
     let header_style = Style::default().fg(theme.header_fg).bg(theme.header_bg);
 
-    ["ID", "Frequency", "Grid", "Callsign", "Mode", "Comment", "Timestamp", "Duration"]
-        .into_iter()
-        .map(Cell::from)
-        .collect::<Row>()
-        .style(header_style)
-        .height(1)
+    [
+        "ID",
+        "Frequency",
+        "Grid",
+        "Callsign",
+        "Mode",
+        "Comment",
+        "Timestamp",
+        "Duration",
+    ]
+    .into_iter()
+    .map(Cell::from)
+    .collect::<Row>()
+    .style(header_style)
+    .height(1)
 }
 
-fn create_row(log: &LogResponse, index: usize, is_selected: bool, theme: &TableTheme) -> Row<'static> {
+fn create_row(
+    log: &LogResponse,
+    index: usize,
+    is_selected: bool,
+    theme: &TableTheme,
+) -> Row<'static> {
     let bg_color = if index % 2 == 0 {
         theme.normal_row
     } else {
@@ -140,14 +149,9 @@ fn create_row(log: &LogResponse, index: usize, is_selected: bool, theme: &TableT
     };
 
     // Use to_table_row() which handles all formatting + Option unwrapping
-    let cells: Vec<Cell> = log.to_table_row()
-        .into_iter()
-        .map(Cell::from)
-        .collect();
+    let cells: Vec<Cell> = log.to_table_row().into_iter().map(Cell::from).collect();
 
     let mut row = Row::new(cells).style(Style::default().bg(bg_color));
-
-
 
     if is_selected {
         row = row.style(
@@ -159,7 +163,7 @@ fn create_row(log: &LogResponse, index: usize, is_selected: bool, theme: &TableT
 
     row
 }
-    
+
 pub fn create_rows(state: &ViewLogsState, theme: &TableTheme) -> Vec<Row<'static>> {
     state
         .logs
@@ -170,11 +174,7 @@ pub fn create_rows(state: &ViewLogsState, theme: &TableTheme) -> Vec<Row<'static
 }
 
 /// Create the complete table widget
-pub fn create_table<'a>(
-    header: Row<'a>,
-    rows: Vec<Row<'a>>,
-    theme: &TableTheme
-) -> Table<'a> {
+pub fn create_table<'a>(header: Row<'a>, rows: Vec<Row<'a>>, theme: &TableTheme) -> Table<'a> {
     let widths = [
         Constraint::Length(COL_WIDTH_ID),
         Constraint::Length(COL_WIDTH_FREQUENCY),
@@ -195,9 +195,8 @@ pub fn create_table<'a>(
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD))
 }
 
-
+/*
 pub fn handle_scroll_state(direction: ScrollDirection) {
     todo!()
-
 }
-
+*/

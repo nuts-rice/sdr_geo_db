@@ -21,31 +21,25 @@ pub mod api_client;
 pub mod components;
 pub mod tabs;
 
-use tabs::view_logs::{create_table, create_header, ViewLogsState};    
+use tabs::view_logs::{create_header, create_table, ViewLogsState};
 
 use components::geolocate_gridsquare;
 
-
 enum ActiveTab {
     NewLog,
-    SpectrumView,  //Show as under construction
+    SpectrumView, //Show as under construction
     ViewLogs,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 enum FormField {
+    #[default]
     Frequency,
     GridSquare,
     Callsign,
     Mode,
     Comment,
     RecordingDuration,
-}
-
-impl Default for FormField {
-    fn default() -> Self {
-        FormField::Frequency
-    }
 }
 
 impl FormField {
@@ -145,7 +139,7 @@ impl App {
         .split(frame.area());
 
         // Tab bar
-        let tabs = vec!["New Log", "Spectrum View", "View Logs"];
+        let tabs = ["New Log", "Spectrum View", "View Logs"];
         let tab_titles: Vec<Span> = tabs
             .iter()
             .map(|t| Span::styled(*t, Style::default().fg(Color::Cyan)))
@@ -158,11 +152,31 @@ impl App {
         let tabs_widget = Tabs::new(tab_titles)
             .select(active_tab_idx)
             .block(Block::default().borders(Borders::ALL).title("Tabs"))
-            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
             .divider(Span::raw("|"));
         frame.render_widget(tabs_widget, chunks[0]);
 
-        // Title (changes per tab)
+        let intro_popup_area = ratatui::layout::Rect {
+            x: frame.area().width / 6,
+            y: frame.area().height / 6,
+            width: frame.area().width * 2 / 3,
+            height: frame.area().height * 2 / 3,
+        };
+        if self.status_message.borrow().is_none()
+            && self.frequency_input.borrow().is_empty()
+            && self.grid_square_input.borrow().is_empty()
+            && self.callsign_input.borrow().is_empty()
+            && self.comment_input.borrow().is_empty()
+            && self.duration_input.borrow().is_empty()
+        {
+            Self::render_intro_popup(frame, intro_popup_area);
+            return;
+        }
+
         let title_text = match *self.active_tab.borrow() {
             ActiveTab::NewLog => "SDR Database - New Log Entry",
             ActiveTab::SpectrumView => "SDR Database - Spectrum View",
@@ -209,9 +223,7 @@ impl App {
                 };
                 ("Logs", msg, Color::Cyan)
             }
-            ActiveTab::SpectrumView => {
-                ("Info", "🚧 Coming soon...".to_string(), Color::Magenta)
-            }
+            ActiveTab::SpectrumView => ("Info", "🚧 Coming soon...".to_string(), Color::Magenta),
         };
         let status = Paragraph::new(status_msg)
             .block(Block::default().borders(Borders::ALL).title(status_title))
@@ -222,14 +234,41 @@ impl App {
         // Help (changes per tab)
         let help_text = match *self.active_tab.borrow() {
             ActiveTab::NewLog => "Tab: Navigate | Up/Down: Mode | Enter: Submit | G: Geolocate | ←/→: Tab | Esc: Clear",
-            ActiveTab::SpectrumView => "←/→: Change Tab | 🚧 Under Construction",
+            ActiveTab::SpectrumView => "←/→: Change Tab | 🚧   Under Construction",
             ActiveTab::ViewLogs => "↑/↓: Scroll | R: Refresh | ←/→: Tab | Enter: Details",
         };
         let help = Line::from(vec![
             Span::raw(help_text),
-            Span::raw("  |                                                               Made with 🦀💜🦀 in Colorado"),
+            Span::raw("  |                                                               Made with 🦀 💜 🦀 in Colorado"),
         ]);
         frame.render_widget(help, chunks[4]);
+    }
+
+    fn render_intro_popup(frame: &mut Frame, area: ratatui::layout::Rect) {
+        use ratatui::widgets::*;
+
+        let text = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "Welcome to the SDR Database!",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from("Use the tabs above to navigate between different sections."),
+            Line::from("In 'New Log', fill out the form to submit a new SDR contact entry."),
+            Line::from("In 'Spectrum View', tune into live spectrum display. "),
+            Line::from("In 'View Logs', browse and manage existing log entries."),
+            Line::from(""),
+            Line::from("Press any key to continue..."),
+        ];
+
+        let paragraph = Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("Intro"))
+            .alignment(Alignment::Center);
+
+        frame.render_widget(paragraph, area);
     }
 
     fn render_form(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
@@ -286,13 +325,22 @@ impl App {
 
         let text = vec![
             Line::from(""),
-            Line::from(Span::styled("🚧 Under Construction 🚧", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                "🚧 Under Construction 🚧",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )),
             Line::from(""),
             Line::from("Spectrum View coming soon!"),
         ];
 
         let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title("Spectrum View"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Spectrum View"),
+            )
             .alignment(Alignment::Center);
 
         frame.render_widget(paragraph, area);
@@ -310,7 +358,10 @@ impl App {
                 Line::from(""),
                 Line::from("No logs loaded."),
                 Line::from(""),
-                Line::from(Span::styled("Press 'R' to refresh", Style::default().fg(Color::Yellow))),
+                Line::from(Span::styled(
+                    "Press 'R' to refresh",
+                    Style::default().fg(Color::Yellow),
+                )),
             ];
             let paragraph = Paragraph::new(text)
                 .block(Block::default().borders(Borders::ALL).title("View Logs"))
@@ -451,10 +502,11 @@ impl App {
         }
     }
 
-    fn handle_active_tab_change(&self, new_tab: ActiveTab) {
-        *self.active_tab.borrow_mut() = new_tab;
-    }
-
+    /*
+        fn handle_active_tab_change(&self, new_tab: ActiveTab) {
+            *self.active_tab.borrow_mut() = new_tab;
+        }
+    */
     fn handle_backspace(&self) {
         let focused = *self.selected_field.borrow();
         match focused {
@@ -567,16 +619,18 @@ impl App {
                 return;
             }
         };
-
-        let mut form = self.form_data.borrow_mut();
-        form.frequency = frequency;
-        form.grid_square = grid_square;
-        form.callsign = callsign;
-        form.comment = comment;
-        form.recording_duration = duration;
+        let form_clone = {
+            let mut form = self.form_data.borrow_mut();
+            form.frequency = frequency;
+            form.grid_square = grid_square;
+            form.callsign = callsign;
+            form.comment = comment;
+            form.recording_duration = duration;
+            form.clone()
+        };
         let url = format!("{}/logs", base_url);
 
-        match api_client::create_log_async(&url, form.clone()).await {
+        match api_client::create_log_async(&url, form_clone).await {
             Ok(_) => {
                 //TODO: auto-clear here
                 *self.status_message.borrow_mut() = Some("✓ Submission successful".to_string());
