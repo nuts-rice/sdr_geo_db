@@ -12,6 +12,8 @@ use ratzilla::{
     DomBackend, WebRenderer,
 };
 
+use ratatui::prelude::Rect;
+
 use gloo_timers::future::TimeoutFuture;
 use sdr_db::{LogFormData, SignalMode};
 use wasm_bindgen_futures::spawn_local;
@@ -134,6 +136,8 @@ struct App {
     active_tab: RefCell<ActiveTab>,
     view_log_state: RefCell<ViewLogsState>,
     theme: RefCell<Theme>,
+ theme_popup_visible: RefCell<bool>,
+      theme_selected_index: RefCell<usize>,
 }
 
 impl App {
@@ -151,6 +155,8 @@ impl App {
             active_tab: RefCell::new(ActiveTab::NewLog),
             view_log_state: RefCell::new(ViewLogsState::new()),
             theme: RefCell::new(Theme::Moab),
+            theme_popup_visible: RefCell::new(false),
+            theme_selected_index: RefCell::new(0),
         }
     }
 
@@ -270,9 +276,13 @@ impl App {
             Span::raw("  |                                                               Made with 🦀 💜 🦀 in Colorado"),
         ]);
         frame.render_widget(help, chunks[4]);
+  if *self.theme_popup_visible.borrow() {
+      self.render_theme_selector_popup(frame, frame.area());
+  }
+
     }
 
-    fn render_theme_selector_popup(frame: &mut Frame, area: ratatui::layout::Rect) {
+    fn render_theme_selector_popup(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
         use ratatui::widgets::*;
         let popup_width = 50.min(area.width.saturating_sub(4));
         let popup_height = 7.min(area.height.saturating_sub(2));
@@ -283,37 +293,36 @@ impl App {
             height: popup_height,
         };
 
-        ratatui::widgets::Clear.render(popup_area, buf);
-
+        frame.render_widget(Clear, popup_area); 
+        let selected = *self.theme_selected_index.borrow();
         let themes = [Theme::Moab, Theme::Catppuccin];
         let items: Vec<ListItem> = themes
             .iter()
-            .map(|theme| {
-                ListItem::new(theme.as_str()).style(
+            .enumerate()
+            .map(|(idx, theme)| {
+                let style = if idx == selected {
                     Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                )
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+
+                let cursor = if idx == selected { ">" } else { " " };
+                let line = format!("{} {}", cursor, theme.as_str());
+                ListItem::new(line).style(style)
             })
             .collect();
-
         let list = List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Select Theme")
+.title("Select Theme (↑↓ Enter Esc)")
                 .border_type(BorderType::Rounded),
-        );
+        )
+ .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-        let paragraph = Paragraph::new(list)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Theme Selector"),
-            )
-            .style(Style::default().fg(Color::Cyan))
-            .alignment(Alignment::Center);
+        frame.render_widget(list, popup_area);      
 
-        paragraph.render_widget(popup_area, buf);
     }
 
     fn render_intro_popup(frame: &mut Frame, area: ratatui::layout::Rect) {
@@ -509,6 +518,34 @@ impl App {
     }
 
     fn handle_events(&self, key_event: KeyEvent, app_rc: &Rc<Self>) {
+        // Handle theme popup first (modal)
+        if *self.theme_popup_visible.borrow() {
+            match key_event.code {
+                KeyCode::Up => {
+                    let mut idx = self.theme_selected_index.borrow_mut();
+                    *idx = idx.saturating_sub(1);
+                }
+                KeyCode::Down => {
+                    let mut idx = self.theme_selected_index.borrow_mut();
+                    *idx = (*idx + 1).min(1); // 2 themes: 0 and 1
+                }
+                KeyCode::Enter => {
+                    let idx = *self.theme_selected_index.borrow();
+                    let new_theme = match idx {
+                        0 => Theme::Moab,
+                        _ => Theme::Catppuccin,
+                    };
+                    *self.theme.borrow_mut() = new_theme;
+                    *self.theme_popup_visible.borrow_mut() = false;
+                }
+                KeyCode::Esc => {
+                    *self.theme_popup_visible.borrow_mut() = false;
+                }
+                _ => {}
+            }
+            return; // Don't process other keys when popup is open
+        }
+
         match key_event.code {
             KeyCode::Tab => {
                 let mut selected = self.selected_field.borrow_mut();
@@ -537,6 +574,10 @@ impl App {
                 self.handle_backspace();
             }
             KeyCode::Char(c) => match c.to_ascii_lowercase() {
+                't' => {
+                    *self.theme_popup_visible.borrow_mut() = true;
+                    *self.theme_selected_index.borrow_mut() = 0;
+                }
                 'g' => app_rc.request_geolocation(),
                 'r' => {
                     if matches!(*self.active_tab.borrow(), ActiveTab::ViewLogs) {

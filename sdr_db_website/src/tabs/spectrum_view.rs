@@ -7,8 +7,8 @@ use ratatui::{
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, Widget},
 };
 
-use sdr_db::source::file::FileSpectrum;
-use sdr_db::source::spectrum::SpectrumDataSource;
+
+use crate::Theme;
 
 const BUFFER_SIZE: usize = 4096;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +55,8 @@ pub struct SpectrumViewerState {
     /// Peak hold values: Vec (frequency_hz, power_dbm)
     pub peak_hold: Vec<(f64, f64)>,
 
-    pub csv_source: Option<FileSpectrum>,
+    // TODO: Replace with WASM-compatible spectrum source
+    // pub csv_source: Option<FileSpectrum>,
 
     pub theme: Theme,
 

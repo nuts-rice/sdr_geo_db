@@ -427,21 +427,6 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
     );
     list.render(chunks[0], buf);
 
-    let theme_items: Vec<ListItem> = THEMES
-        .iter()
-        .map(|theme| {
-            let style = Style::default().fg(Color::Gray);
-            ListItem::new(*theme).style(style)
-        })
-        .collect();
-    let theme_list = List::new(theme_items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("Theme:")
-            .border_style(Style::default().fg(AMBER_MID))
-            .style(Style::default().bg(AMBER_DIM)),
-    );
-    theme_list.render(chunks[2], buf);
     // Render gain settings
     let gain_lines = vec![
         Line::from(format!("LNA gain: {} dB", state.lna_gain)),
