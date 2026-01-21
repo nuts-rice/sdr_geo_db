@@ -105,7 +105,6 @@ impl SpectrumViewerState {
         state
     }
 
-    /// Move frequency up by one step
     pub fn increase_frequency(&mut self) {
         self.center_frequency += self.frequency_step;
         self.generate_sample_data();
@@ -299,9 +298,78 @@ impl SpectrumViewerState {
         self.generate_sample_data();
     }
 
-    /// Load spectrum data from external source
     pub fn load_spectrum_data(&mut self, data: Vec<(f64, f64)>) {
         self.spectrum_data = data;
+    }
+
+    pub fn show_file_source_popup(&mut self) {
+        self.file_source_select.visible = true;
+        self.file_source_select.error_message = None;
+    }
+
+    pub fn hide_file_source_popup(&mut self) {
+        self.file_source_select.visible = false;
+        self.file_source_select.input_path.clear();
+        self.file_source_select.cursor_pos = 0;
+        self.file_source_select.error_message = None;
+    }
+
+    pub fn is_file_popup_visible(&self) -> bool {
+        self.file_source_select.visible
+    }
+
+    pub fn file_popup_input(&mut self, c: char) {
+        self.file_source_select
+            .input_path
+            .insert(self.file_source_select.cursor_pos, c);
+        self.file_source_select.cursor_pos += 1;
+        self.file_source_select.error_message = None;
+    }
+
+    pub fn file_popup_backspace(&mut self) {
+        if self.file_source_select.cursor_pos > 0 {
+            self.file_source_select.cursor_pos -= 1;
+            self.file_source_select
+                .input_path
+                .remove(self.file_source_select.cursor_pos);
+        }
+    }
+
+    pub fn file_popup_cursor_left(&mut self) {
+        if self.file_source_select.cursor_pos > 0 {
+            self.file_source_select.cursor_pos -= 1;
+        }
+    }
+
+    pub fn file_popup_cursor_right(&mut self) {
+        if self.file_source_select.cursor_pos < self.file_source_select.input_path.len() {
+            self.file_source_select.cursor_pos += 1;
+        }
+    }
+
+    pub fn confirm_file_source(&mut self) -> Result<(), String> {
+        let path = self.file_source_select.input_path.trim().to_string();
+
+        if path.is_empty() {
+            self.file_source_select.error_message = Some("Path cannot be empty".to_string());
+            return Err("Path cannot be empty".to_string());
+        }
+
+        // Try the file as CSV spectrum data
+        match FileSpectrum::from_csv(path.clone()) {
+            Ok(spectrum) => {
+                self.csv_source = Some(spectrum);
+                self.source = SpectrumSource::File;
+                self.hide_file_source_popup();
+                self.generate_sample_data();
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to load file: {}", e);
+                self.file_source_select.error_message = Some(error_msg.clone());
+                Err(error_msg)
+            }
+        }
     }
 }
 
@@ -373,25 +441,58 @@ fn render_left_panel(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) 
 }
 
 fn render_file_source_select_popup(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) {
+    let popup_width = 50.min(area.width.saturating_sub(4));
+    let popup_height = 7.min(area.height.saturating_sub(2));
+    let popup_area = Rect {
+        x: area.x + (area.width.saturating_sub(popup_width)) / 2,
+        y: area.y + (area.height.saturating_sub(popup_height)) / 2,
+        width: popup_width,
+        height: popup_height,
+    };
+
+    ratatui::widgets::Clear.render(popup_area, buf);
+
     let block = Block::default()
         .borders(Borders::ALL)
         .title(Span::styled(
-            "Select File Source",
+            " Select File Source ",
             Style::default().fg(AMBER_BRIGHT),
         ))
         .border_style(Style::default().fg(AMBER_MID))
         .style(Style::default().bg(Color::Black));
 
-    block.render(area, buf);
+    let path = &state.file_source_select.input_path;
+    let cursor_pos = state.file_source_select.cursor_pos;
+    let (before, after) = path.split_at(cursor_pos.min(path.len()));
 
-    let instructions = Line::raw("File path of source file: ");
-    let instruction_area = Rect {
-        x: area.x + 2,
-        y: area.y + area.height - 2,
-        width: area.width - 4,
-        height: 1,
+    let input_line = Line::from(vec![
+        Span::styled("Path: ", Style::default().fg(AMBER_MID)),
+        Span::styled(before, Style::default().fg(Color::White)),
+        Span::styled("█", Style::default().fg(AMBER_BRIGHT)),
+        Span::styled(after, Style::default().fg(Color::White)),
+    ]);
+
+    let error_line = if let Some(ref err) = state.file_source_select.error_message {
+        Line::from(Span::styled(err, Style::default().fg(Color::Red)))
+    } else {
+        Line::from("")
     };
-    instructions.render(instruction_area, buf);
+
+    let hint_line = Line::from(Span::styled(
+        "Formats: .csv, .iq",
+        Style::default().fg(AMBER_DIM),
+    ));
+    let keys_line = Line::from(Span::styled(
+        "[Enter] Confirm  [Esc] Cancel",
+        Style::default().fg(AMBER_DIM),
+    ));
+
+    let content = vec![input_line, error_line, hint_line, keys_line];
+    let paragraph = ratatui::widgets::Paragraph::new(content)
+        .block(block)
+        .style(Style::default().fg(Color::Gray));
+
+    paragraph.render(popup_area, buf);
 }
 
 /// Render the spectrum viewer chart
@@ -468,15 +569,12 @@ fn render_spectrum_chart(state: &SpectrumViewerState, area: Rect, buf: &mut Buff
     chart.render(area, buf);
 }
 
-/// Render the complete spectrum viewer with selector and chart
 pub fn render_spectrum_viewer(state: &SpectrumViewerState, area: Rect, buf: &mut Buffer) {
-    // Create horizontal layout: selector panel on left, chart on right
     let chunks = Layout::horizontal([Constraint::Length(20), Constraint::Min(0)]).split(area);
 
     render_left_panel(state, chunks[0], buf);
     render_spectrum_chart(state, chunks[1], buf);
 
-    // Render footer with instructions
     let footer_area = Rect {
         x: area.x,
         y: area.y + area.height.saturating_sub(1),
@@ -484,7 +582,12 @@ pub fn render_spectrum_viewer(state: &SpectrumViewerState, area: Rect, buf: &mut
         height: 1,
     };
 
-    let footer_text =
-        Line::raw("Up/Down: Frequency | L/Shift+L: LNA Gain | V/Shift+V: VGA Gain | Tab: Source");
+    let footer_text = Line::raw(
+        "Up/Down: Frequency | L/Shift+L: LNA Gain | V/Shift+V: VGA Gain | Tab: Source | f: File",
+    );
     footer_text.render(footer_area, buf);
+
+    if state.file_source_select.visible {
+        render_file_source_select_popup(state, area, buf);
+    }
 }

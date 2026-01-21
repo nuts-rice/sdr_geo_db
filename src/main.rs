@@ -182,38 +182,67 @@ impl App {
                         self.new_log_form.handle_key_event(key);
                     }
                 },
-                SelectedTab::SpectrumViewer => match key.code {
-                    KeyCode::Up => {
-                        self.spectrum_viewer_state.increase_frequency();
-                    }
-                    KeyCode::Down => {
-                        self.spectrum_viewer_state.decrease_frequency();
-                    }
-                    KeyCode::Tab => {
-                        self.spectrum_viewer_state.toggle_source();
-                    }
-                    KeyCode::Char('l') | KeyCode::Char('L') => {
-                        if key
-                            .modifiers
-                            .contains(crossterm::event::KeyModifiers::SHIFT)
-                        {
-                            self.spectrum_viewer_state.decrease_lna_gain();
-                        } else {
-                            self.spectrum_viewer_state.increase_lna_gain();
+                SelectedTab::SpectrumViewer => {
+                    if self.spectrum_viewer_state.is_file_popup_visible() {
+                        match key.code {
+                            KeyCode::Esc => {
+                                self.spectrum_viewer_state.hide_file_source_popup();
+                            }
+                            KeyCode::Enter => {
+                                let _ = self.spectrum_viewer_state.confirm_file_source();
+                            }
+                            KeyCode::Backspace => {
+                                self.spectrum_viewer_state.file_popup_backspace();
+                            }
+                            KeyCode::Left => {
+                                self.spectrum_viewer_state.file_popup_cursor_left();
+                            }
+                            KeyCode::Right => {
+                                self.spectrum_viewer_state.file_popup_cursor_right();
+                            }
+                            KeyCode::Char(c) => {
+                                self.spectrum_viewer_state.file_popup_input(c);
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        match key.code {
+                            KeyCode::Up => {
+                                self.spectrum_viewer_state.increase_frequency();
+                            }
+                            KeyCode::Down => {
+                                self.spectrum_viewer_state.decrease_frequency();
+                            }
+                            KeyCode::Tab => {
+                                self.spectrum_viewer_state.toggle_source();
+                            }
+                            KeyCode::Char('f') => {
+                                self.spectrum_viewer_state.show_file_source_popup();
+                            }
+                            KeyCode::Char('l') | KeyCode::Char('L') => {
+                                if key
+                                    .modifiers
+                                    .contains(crossterm::event::KeyModifiers::SHIFT)
+                                {
+                                    self.spectrum_viewer_state.decrease_lna_gain();
+                                } else {
+                                    self.spectrum_viewer_state.increase_lna_gain();
+                                }
+                            }
+                            KeyCode::Char('v') | KeyCode::Char('V') => {
+                                if key
+                                    .modifiers
+                                    .contains(crossterm::event::KeyModifiers::SHIFT)
+                                {
+                                    self.spectrum_viewer_state.decrease_vga_gain();
+                                } else {
+                                    self.spectrum_viewer_state.increase_vga_gain();
+                                }
+                            }
+                            _ => {}
                         }
                     }
-                    KeyCode::Char('v') | KeyCode::Char('V') => {
-                        if key
-                            .modifiers
-                            .contains(crossterm::event::KeyModifiers::SHIFT)
-                        {
-                            self.spectrum_viewer_state.decrease_vga_gain();
-                        } else {
-                            self.spectrum_viewer_state.increase_vga_gain();
-                        }
-                    }
-                    _ => {}
-                },
+                }
                 _ => match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => {
                         self.quit();
