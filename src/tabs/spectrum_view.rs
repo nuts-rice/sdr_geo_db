@@ -14,7 +14,24 @@ const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00 - live data, hig
 const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600 - labels, borders
 const AMBER_DIM: Color = Color::Rgb(85, 51, 0); // #553300 - grid, backgrounds
 
-const THEMES: [&str; 2] = ["Mojave", "Catppuccin"];
+const CATPPUCIN_YELLOW: Color = Color::Rgb(238, 212, 159); // #EED49F 
+const CATPPUCIN_ORANGE: Color = Color::Rgb(245, 153, 160); // #f5a97f
+const CATPPUCIN_BLUE: Color = Color::Rgb(138, 173, 244); // #8aadf4
+
+#[derive(Debug, Clone)]
+pub enum Theme {
+    Moab,
+    Catppuccin,
+}
+
+impl Theme {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Theme::Moab => "Moab",
+            Theme::Catppuccin => "Catppuccin",
+        }
+    }
+}
 
 /// Source type for spectrum data
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +88,8 @@ pub struct SpectrumViewerState {
 
     pub csv_source: Option<FileSpectrum>,
 
+    pub theme: Theme,
+
     pub file_source_select: FileSourceSelectState,
 }
 
@@ -87,6 +106,7 @@ impl Default for SpectrumViewerState {
             time: 0.0,
             peak_hold: Vec::new(),
             csv_source: FileSpectrum::from_csv("./recordings/sweep.csv".to_string()).ok(),
+            theme: Theme::Moab,
             file_source_select: FileSourceSelectState::default(),
         };
         state.generate_sample_data();

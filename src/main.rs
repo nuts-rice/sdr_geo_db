@@ -22,6 +22,31 @@ use ratatui::{
 
 use strum::IntoEnumIterator;
 
+const FONT: &str = "Hack Nerd Font";
+
+const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00 
+const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600
+const AMBER_DIM: Color = Color::Rgb(85, 51, 0); // #553300 
+
+const CATPPUCIN_YELLOW: Color = Color::Rgb(238, 212, 159); // #EED49F 
+const CATPPUCIN_ORANGE: Color = Color::Rgb(245, 153, 160); // #f5a97f
+const CATPPUCIN_BLUE: Color = Color::Rgb(138, 173, 244); // #8aadf4
+
+#[derive(Debug, Clone)]
+pub enum Theme {
+    Moab,
+    Catppuccin,
+}
+
+impl Theme {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Theme::Moab => "Moab",
+            Theme::Catppuccin => "Catppuccin",
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "sdr_db")]
 #[command(about = "SDR Database - Collect and store SDR measurements with geospatial data", long_about = None)]

@@ -1,6 +1,9 @@
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{
+        Query, State,
+        ws::{WebSocket, WebSocketUpgrade},
+    },
     http::{HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -13,7 +16,7 @@ use thiserror::Error;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
 
-use sdr_db::{Log, LogFormData, create_log, get_logs};
+use sdr_db::{Log, LogFormData, create_log, get_logs, spectrum_types::generate_mock_spectrum};
 
 /*
 *#post log : curl -X POST http://localhost:3000/logs -H "Content-Type: application/json" -d '{"frequency": 14.070, "grid_square": "FN31", "callsign": "K1ABC", "mode": "USB", "comment": "Test log entry", "recording_duration": 120.5}'
@@ -190,6 +193,22 @@ async fn health_handler(State(pool): State<DbPool>) -> Result<Json<HealthRespons
     }))
 }
 
+async fn spectrum_handler(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(handle_spectrum_ws)
+}
+
+async fn handle_spectrum_ws(mut socket: WebSocket) {
+    let mut interval = tokio::time::interval(Duration::from_millis(66));
+    loop {
+        interval.tick().await;
+        let frame = generate_mock_spectrum(Duration::from_millis(66));
+        let msg = serde_json::to_string(&frame).unwrap();
+        if socket.send(Message::Text(msg)).await.is_err() {
+            break;
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -228,6 +247,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/logs", post(create_log_handler))
         .route("/logs", get(list_logs_handler))
         .route("/health", get(health_handler))
+        .route("/spectrum", get(spectrum_handler))
         .layer(cors)
         .with_state(pool);
 

@@ -2,6 +2,7 @@ use num_complex::Complex;
 
 use std::fmt;
 
+pub mod fft;
 pub mod hackrf;
 pub mod stream;
 

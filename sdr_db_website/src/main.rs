@@ -19,11 +19,37 @@ use web_sys::window;
 
 pub mod api_client;
 pub mod components;
+pub mod spectrum_client;
 pub mod tabs;
 
 use tabs::view_logs::{create_header, create_table, ViewLogsState};
 
 use components::geolocate_gridsquare;
+
+const FONT: &str = "Hack Nerd Font";
+
+const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00
+const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600
+const AMBER_DIM: Color = Color::Rgb(85, 51, 0); // #553300
+
+const CATPPUCIN_YELLOW: Color = Color::Rgb(238, 212, 159); // #EED49F
+const CATPPUCIN_ORANGE: Color = Color::Rgb(245, 153, 160); // #f5a97f
+const CATPPUCIN_BLUE: Color = Color::Rgb(138, 173, 244); // #8aadf4
+
+#[derive(Debug, Clone)]
+pub enum Theme {
+    Moab,
+    Catppuccin,
+}
+
+impl Theme {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Theme::Moab => "Moab",
+            Theme::Catppuccin => "Catppuccin",
+        }
+    }
+}
 
 enum ActiveTab {
     NewLog,
@@ -107,6 +133,7 @@ struct App {
     status_message: RefCell<Option<String>>,
     active_tab: RefCell<ActiveTab>,
     view_log_state: RefCell<ViewLogsState>,
+    theme: RefCell<Theme>,
 }
 
 impl App {
@@ -123,6 +150,7 @@ impl App {
             status_message: RefCell::new(None),
             active_tab: RefCell::new(ActiveTab::NewLog),
             view_log_state: RefCell::new(ViewLogsState::new()),
+            theme: RefCell::new(Theme::Moab),
         }
     }
 
@@ -242,6 +270,50 @@ impl App {
             Span::raw("  |                                                               Made with 🦀 💜 🦀 in Colorado"),
         ]);
         frame.render_widget(help, chunks[4]);
+    }
+
+    fn render_theme_selector_popup(frame: &mut Frame, area: ratatui::layout::Rect) {
+        use ratatui::widgets::*;
+        let popup_width = 50.min(area.width.saturating_sub(4));
+        let popup_height = 7.min(area.height.saturating_sub(2));
+        let popup_area = Rect {
+            x: area.x + (area.width.saturating_sub(popup_width)) / 2,
+            y: area.y + (area.height.saturating_sub(popup_height)) / 2,
+            width: popup_width,
+            height: popup_height,
+        };
+
+        ratatui::widgets::Clear.render(popup_area, buf);
+
+        let themes = [Theme::Moab, Theme::Catppuccin];
+        let items: Vec<ListItem> = themes
+            .iter()
+            .map(|theme| {
+                ListItem::new(theme.as_str()).style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
+            })
+            .collect();
+
+        let list = List::new(items).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Select Theme")
+                .border_type(BorderType::Rounded),
+        );
+
+        let paragraph = Paragraph::new(list)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Theme Selector"),
+            )
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Center);
+
+        paragraph.render_widget(popup_area, buf);
     }
 
     fn render_intro_popup(frame: &mut Frame, area: ratatui::layout::Rect) {

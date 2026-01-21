@@ -34,7 +34,8 @@ pub struct HackRFSource {
     config: HackRFConfig,
     buffer: Vec<Complex<f32>>,
     rx_stream: Option<RxStream<Complex<f32>>>,
-    receiver: mpsc::Receiver<Vec<u8>>,
+    spectrum_tx: mpsc::Sender<Vec<(f64, f64)>>,
+    spectrum_rx: mpsc::Receiver<Vec<(f64, f64)>>,
     is_streaming: bool,
 }
 
@@ -89,9 +90,35 @@ impl HackRFSource {
             config,
             buffer: Vec::with_capacity(BUFFER_SIZE),
             rx_stream: None,
-            receiver: mpsc::channel(100).1,
+            spectrum_tx: mpsc::channel(1).0,
+            spectrum_rx: mpsc::channel(1).1,
             is_streaming: false,
         })
+    }
+
+    pub fn start_streaming(&mut self) {
+        let tx = self.spectrum_tx.clone();
+        let device = self.device.clone();
+        tokio::spawn(async move {
+            let mut buffer = vec![Complex::default(); BUFFER_SIZE];
+            loop {
+                let mut rx_stream = device
+                    .rx_stream::<Complex<f32>>(&[0])
+                    .expect("Failed to create RX stream");
+                rx_stream
+                    .activate(None)
+                    .expect("Failed to activate RX stream");
+                let num_samples = rx_stream
+                    .read(&mut [buffer.as_mut_slice()], 1000000)
+                    .expect("Failed to read samples");
+                //TODO: FFT and compute spectrum
+
+                let spectrum: Vec<(f64, f64)> = vec![];
+                if tx.send(spectrum).await.is_err() {
+                    break;
+                }
+            }
+        });
     }
 
     pub fn set_frequency(&mut self, frequency: f32) -> Result<(), SourceError> {

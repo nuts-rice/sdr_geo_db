@@ -2,6 +2,7 @@
 use diesel::prelude::*;
 
 pub mod api_types;
+pub mod spectrum_types;
 
 pub mod error;
 pub mod form;
