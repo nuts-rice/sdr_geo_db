@@ -12,6 +12,7 @@ use ratatui::{
 use crate::App;
 use crate::Theme;
 use crate::AMBER_BRIGHT;
+use crate::AMBER_MID;
 use crate::AMBER_DIM;
 
  use sdr_db::spectrum_types::SpectrumFrame;
@@ -127,7 +128,7 @@ pub fn render_spectrum_view(state: &SpectrumViewerState, frame: &mut Frame, area
     let y_max = 0.0;
     let x_labels = vec![
         format!("{:.1} MHz", x_min / 1_000_000.0),
-        format!("{:.1} MHz", (x_min + x_max) / 2.),
+        format!("{:.1} MHz", (x_min + x_max) / 1_000_000. / 2.),
         format!("{:.1} MHz", x_max / 1_000_000.0),
 
     ];
@@ -154,6 +155,36 @@ pub fn render_spectrum_view(state: &SpectrumViewerState, frame: &mut Frame, area
         .block(Block::default().borders(Borders::ALL).title("Status"))
         .alignment(Alignment::Center);
     frame.render_widget(header_block, chunks[0]);
+
+    let datasets = vec![
+        Dataset::default()
+            .name("Spectrum")
+            .marker(symbols::Marker::Braille)
+            .style(Style::default().fg(AMBER_MID))
+            .data(&state.spectrum_data)
+            .graph_type(GraphType::Line),
+        Dataset::default()
+            .name("Peak Hold")
+            .marker(symbols::Marker::Dot)
+            .style(Style::default().fg(AMBER_BRIGHT))
+            .data(&state.peak_hold)
+            .graph_type(GraphType::Line),
+    ];
+    let chart = Chart::new(datasets)
+        .block(Block::default().borders(Borders::ALL).title("Spectrum"))
+        .x_axis(
+            Axis::default()
+                .title("Frequency (MHz)")
+                .bounds([x_min, x_max])
+                .labels(x_labels),
+        )
+        .y_axis(
+            Axis::default()
+                .title("Power (dBm)")
+                .bounds([y_min, y_max])
+                .labels(y_labels),
+        );
+    frame.render_widget(chart, chunks[1]);
 
 
 }
