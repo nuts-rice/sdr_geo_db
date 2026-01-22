@@ -7,7 +7,6 @@ use ratatui::{
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, Widget},
 };
 
-
 use crate::Theme;
 
 const BUFFER_SIZE: usize = 4096;
@@ -57,7 +56,6 @@ pub struct SpectrumViewerState {
 
     // TODO: Replace with WASM-compatible spectrum source
     // pub csv_source: Option<FileSpectrum>,
-
     pub theme: Theme,
 
     pub file_source_select: FileSourceSelectState,

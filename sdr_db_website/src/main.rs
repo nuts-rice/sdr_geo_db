@@ -136,8 +136,8 @@ struct App {
     active_tab: RefCell<ActiveTab>,
     view_log_state: RefCell<ViewLogsState>,
     theme: RefCell<Theme>,
- theme_popup_visible: RefCell<bool>,
-      theme_selected_index: RefCell<usize>,
+    theme_popup_visible: RefCell<bool>,
+    theme_selected_index: RefCell<usize>,
 }
 
 impl App {
@@ -276,10 +276,9 @@ impl App {
             Span::raw("  |                                                               Made with 🦀 💜 🦀 in Colorado"),
         ]);
         frame.render_widget(help, chunks[4]);
-  if *self.theme_popup_visible.borrow() {
-      self.render_theme_selector_popup(frame, frame.area());
-  }
-
+        if *self.theme_popup_visible.borrow() {
+            self.render_theme_selector_popup(frame, frame.area());
+        }
     }
 
     fn render_theme_selector_popup(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
@@ -293,7 +292,7 @@ impl App {
             height: popup_height,
         };
 
-        frame.render_widget(Clear, popup_area); 
+        frame.render_widget(Clear, popup_area);
         let selected = *self.theme_selected_index.borrow();
         let themes = [Theme::Moab, Theme::Catppuccin];
         let items: Vec<ListItem> = themes
@@ -313,16 +312,16 @@ impl App {
                 ListItem::new(line).style(style)
             })
             .collect();
-        let list = List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-.title("Select Theme (↑↓ Enter Esc)")
-                .border_type(BorderType::Rounded),
-        )
- .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Select Theme (↑↓ Enter Esc)")
+                    .border_type(BorderType::Rounded),
+            )
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
-        frame.render_widget(list, popup_area);      
-
+        frame.render_widget(list, popup_area);
     }
 
     fn render_intro_popup(frame: &mut Frame, area: ratatui::layout::Rect) {

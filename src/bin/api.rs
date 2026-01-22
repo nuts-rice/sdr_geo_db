@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::{
         Query, State,
-        ws::{WebSocket, WebSocketUpgrade},
+        ws::{WebSocket, WebSocketUpgrade, Message},
     },
     http::{HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
@@ -12,6 +12,7 @@ use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager, Pool};
 use sdr_db::api_types::{ErrorResponse, LogResponse, LogsResponse};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use thiserror::Error;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
@@ -199,9 +200,11 @@ async fn spectrum_handler(ws: WebSocketUpgrade) -> Response {
 
 async fn handle_spectrum_ws(mut socket: WebSocket) {
     let mut interval = tokio::time::interval(Duration::from_millis(66));
+    let start = tokio::time::Instant::now();
     loop {
         interval.tick().await;
-        let frame = generate_mock_spectrum(Duration::from_millis(66));
+        let elapsed = start.elapsed().as_secs_f64(); 
+        let frame = generate_mock_spectrum(elapsed);
         let msg = serde_json::to_string(&frame).unwrap();
         if socket.send(Message::Text(msg)).await.is_err() {
             break;
