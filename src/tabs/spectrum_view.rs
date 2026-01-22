@@ -206,19 +206,20 @@ impl SpectrumViewerState {
     /// Generate sample spectrum data for testing with time-varying signals
     /// TODO: Replace with actual SDR data from HackRF or file
     fn generate_sample_data(&mut self) {
-        if self.source == SpectrumSource::File {
-            if let Some(ref mut csv) = self.csv_source {
-                match csv.get_spectrum_data(self.center_frequency, self.span) {
-                    Ok(data) => {
-                        self.spectrum_data = data;
-                        return;
-                    }
-                    Err(_) => {
-                        // Fall back to sample data generation on error
-                    }
+        if self.source == SpectrumSource::File
+            && let Some(ref mut csv) = self.csv_source
+        {
+            match csv.get_spectrum_data(self.center_frequency, self.span) {
+                Ok(data) => {
+                    self.spectrum_data = data;
+                    return;
+                }
+                Err(_) => {
+                    // Fall back to sample data generation on error
                 }
             }
         };
+
         let (freq_min, _freq_max) = self.frequency_range();
         let num_points = 200;
         let step = self.span / num_points as f64;

@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::{
         Query, State,
-        ws::{WebSocket, WebSocketUpgrade, Message},
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::{HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
@@ -203,7 +203,7 @@ async fn handle_spectrum_ws(mut socket: WebSocket) {
     let start = tokio::time::Instant::now();
     loop {
         interval.tick().await;
-        let elapsed = start.elapsed().as_secs_f64(); 
+        let elapsed = start.elapsed().as_secs_f64();
         let frame = generate_mock_spectrum(elapsed);
         let msg = serde_json::to_string(&frame).unwrap();
         if socket.send(Message::Text(msg)).await.is_err() {

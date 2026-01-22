@@ -10,6 +10,7 @@ sdr = ["soapysdr"]
 native-ui = ["crossterm", "tui-input/crossterm", "tui-prompts", "tui-textarea", "tui"]
 wasm = []
 api = ["axum", "tower", "tower-http", "serde_json", "thiserror", "db"]
+axum = ["dep:axum"]
 
 [dependencies]
 # Database dependencies (native only)
@@ -47,7 +48,7 @@ tui-textarea = { version = "0.7.0", optional = true }
 tui = { version = "0.19.0", optional = true }
 
 # API server dependencies
-axum = { version = "0.7", optional = true }
+axum = { version = "0.7", optional = true, features = ["ws"] }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["cors"], optional = true }
 serde_json = { version = "1.0", optional = true }

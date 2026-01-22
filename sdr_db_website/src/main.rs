@@ -25,6 +25,8 @@ pub mod spectrum_client;
 pub mod tabs;
 
 use tabs::view_logs::{create_header, create_table, ViewLogsState};
+use tabs::spectrum_view::{SpectrumViewerState, render_spectrum_view};
+use spectrum_client::SpectrumClient;
 
 use components::geolocate_gridsquare;
 
@@ -38,8 +40,9 @@ const CATPPUCIN_YELLOW: Color = Color::Rgb(238, 212, 159); // #EED49F
 const CATPPUCIN_ORANGE: Color = Color::Rgb(245, 153, 160); // #f5a97f
 const CATPPUCIN_BLUE: Color = Color::Rgb(138, 173, 244); // #8aadf4
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Theme {
+    #[default]
     Moab,
     Catppuccin,
 }
@@ -138,6 +141,10 @@ struct App {
     theme: RefCell<Theme>,
     theme_popup_visible: RefCell<bool>,
     theme_selected_index: RefCell<usize>,
+    spectrum_data: RefCell<Vec<f64>>,
+    spectrum_client: RefCell<Option<SpectrumClient>>,
+    spectrum_view_state: RefCell<SpectrumViewerState>,
+    spectrum_connected: RefCell<bool>,
 }
 
 impl App {
@@ -157,6 +164,11 @@ impl App {
             theme: RefCell::new(Theme::Moab),
             theme_popup_visible: RefCell::new(false),
             theme_selected_index: RefCell::new(0),
+            spectrum_data: RefCell::new(Vec::new()),
+            spectrum_client: RefCell::new(None),
+            spectrum_view_state: RefCell::new(SpectrumViewerState::default()),
+            spectrum_connected: RefCell::new(false),
+
         }
     }
 
@@ -233,7 +245,10 @@ impl App {
                 self.render_form(frame, chunks[2]);
             }
             ActiveTab::SpectrumView => {
-                self.render_under_construction(frame, chunks[2]);
+                let state = self.spectrum_view_state.borrow();
+                let connected = self.spectrum_connected.borrow();
+                let theme = self.theme.borrow();
+                render_spectrum_view(&state, frame, chunks[2], &theme,  *connected);
             }
             ActiveTab::ViewLogs => {
                 self.render_logs_table(frame, chunks[2]);

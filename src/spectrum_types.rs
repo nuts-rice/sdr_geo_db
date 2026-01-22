@@ -12,14 +12,16 @@ pub fn generate_mock_spectrum(time: f64) -> SpectrumFrame {
     let num_points = 1024;
     let center_freq = 162_500_000.;
     let span = 2_000_000.;
-    let data: Vec<f64> = (0..num_points).map(|i| {
-        let x = i as f64 / num_points as f64 ;
-        let noise = (time + x * 10.).sin() * 5.;
-        let signal1 = -30. * ((x * 50. - time).powi(2)).exp();
-        let signal2 = -40. * ((x * 80. - time * 0.5).powi(2)).exp();
-        let animation = (time * 2. + x * 20.).sin() * 3.;
-        noise + signal1 + signal2 + animation
-    }).collect();
+    let data: Vec<f64> = (0..num_points)
+        .map(|i| {
+            let x = i as f64 / num_points as f64;
+            let noise = (time + x * 10.).sin() * 5.;
+            let signal1 = -30. * ((x * 50. - time).powi(2)).exp();
+            let signal2 = -40. * ((x * 80. - time * 0.5).powi(2)).exp();
+            let animation = (time * 2. + x * 20.).sin() * 3.;
+            noise + signal1 + signal2 + animation
+        })
+        .collect();
     SpectrumFrame {
         center_freq,
         span,
@@ -29,5 +31,4 @@ pub fn generate_mock_spectrum(time: f64) -> SpectrumFrame {
             .unwrap()
             .as_millis() as u64,
     }
-
 }

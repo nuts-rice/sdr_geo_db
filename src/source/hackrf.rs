@@ -108,7 +108,7 @@ impl HackRFSource {
                 rx_stream
                     .activate(None)
                     .expect("Failed to activate RX stream");
-                let num_samples = rx_stream
+                let _num_samples = rx_stream
                     .read(&mut [buffer.as_mut_slice()], 1000000)
                     .expect("Failed to read samples");
                 //TODO: FFT and compute spectrum
