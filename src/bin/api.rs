@@ -235,7 +235,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config
                 .allowed_origins
                 .iter()
-                .map(|s| s.parse().unwrap())
+                .map(|s| s.parse::<HeaderValue>().unwrap())
                 .collect::<Vec<_>>(),
         )
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])

@@ -113,9 +113,9 @@ pub fn create_header(theme: &Theme) -> Row<'static> {
 
 fn create_row(log: &LogResponse, index: usize, is_selected: bool, theme: &Theme) -> Row<'static> {
     let bg_color = if index % 2 == 0 {
-        theme.primary_color()
+        theme.primary_table_entry_color()
     } else {
-        theme.secondary_color()
+        theme.secondary_table_entry_color()
     };
 
     // Use to_table_row() which handles all formatting + Option unwrapping
@@ -157,7 +157,11 @@ pub fn create_table<'a>(header: Row<'a>, rows: Vec<Row<'a>>, theme: &Theme) -> T
     let block = Block::default()
         .borders(Borders::ALL)
         .title("View Logs")
-        .style(Style::default().bg(theme.primary_color()).fg(Color::White));
+        .style(
+            Style::default()
+                .bg(theme.background_color())
+                .fg(Color::White),
+        );
 
     Table::new(rows, widths)
         .header(header)
