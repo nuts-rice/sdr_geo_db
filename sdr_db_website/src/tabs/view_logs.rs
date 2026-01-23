@@ -1,44 +1,17 @@
+use crate::Theme;
 use ratatui::{
     layout::Constraint,
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table},
 };
-
 use sdr_db::api_types::LogResponse;
 
-const HEADER_BG: Color = Color::Rgb(54, 68, 96);
-const HEADER_FG: Color = Color::Rgb(14, 15, 23);
-const SELECTED_STYLE_FG: Color = Color::Rgb(138, 173, 244);
-const NORMAL_ROW_COLOR: Color = Color::Rgb(14, 15, 23);
-const ALT_ROW_COLOR: Color = Color::Rgb(20, 21, 29);
-
-// Column widths
 const COL_WIDTH_ID: u16 = 5;
 const COL_WIDTH_FREQUENCY: u16 = 12;
 const COL_WIDTH_CALLSIGN: u16 = 12;
 const COL_WIDTH_MODE: u16 = 6;
 const COL_WIDTH_DURATION: u16 = 10;
 const COL_WIDTH_TIMESTAMP: u16 = 16;
-
-pub struct TableTheme {
-    header_bg: Color,
-    header_fg: Color,
-    selected_fg: Color,
-    normal_row: Color,
-    alt_row: Color,
-}
-
-impl Default for TableTheme {
-    fn default() -> Self {
-        Self {
-            header_bg: HEADER_BG,
-            header_fg: HEADER_FG,
-            selected_fg: SELECTED_STYLE_FG,
-            normal_row: NORMAL_ROW_COLOR,
-            alt_row: ALT_ROW_COLOR,
-        }
-    }
-}
 
 #[derive(Debug, Default)]
 pub struct ViewLogsState {
@@ -116,8 +89,10 @@ impl ViewLogsState {
         self.logs.get(self.selected_index)
     }
 }
-pub fn create_header(theme: &TableTheme) -> Row<'static> {
-    let header_style = Style::default().fg(theme.header_fg).bg(theme.header_bg);
+pub fn create_header(theme: &Theme) -> Row<'static> {
+    let header_style = Style::default()
+        .fg(theme.primary_color())
+        .bg(theme.secondary_color());
 
     [
         "ID",
@@ -136,16 +111,11 @@ pub fn create_header(theme: &TableTheme) -> Row<'static> {
     .height(1)
 }
 
-fn create_row(
-    log: &LogResponse,
-    index: usize,
-    is_selected: bool,
-    theme: &TableTheme,
-) -> Row<'static> {
+fn create_row(log: &LogResponse, index: usize, is_selected: bool, theme: &Theme) -> Row<'static> {
     let bg_color = if index % 2 == 0 {
-        theme.normal_row
+        theme.primary_color()
     } else {
-        theme.alt_row
+        theme.secondary_color()
     };
 
     // Use to_table_row() which handles all formatting + Option unwrapping
@@ -156,7 +126,7 @@ fn create_row(
     if is_selected {
         row = row.style(
             Style::default()
-                .fg(theme.selected_fg)
+                .fg(theme.accent_color())
                 .add_modifier(Modifier::BOLD),
         );
     }
@@ -164,7 +134,7 @@ fn create_row(
     row
 }
 
-pub fn create_rows(state: &ViewLogsState, theme: &TableTheme) -> Vec<Row<'static>> {
+pub fn create_rows(state: &ViewLogsState, theme: &Theme) -> Vec<Row<'static>> {
     state
         .logs
         .iter()
@@ -174,7 +144,7 @@ pub fn create_rows(state: &ViewLogsState, theme: &TableTheme) -> Vec<Row<'static
 }
 
 /// Create the complete table widget
-pub fn create_table<'a>(header: Row<'a>, rows: Vec<Row<'a>>, theme: &TableTheme) -> Table<'a> {
+pub fn create_table<'a>(header: Row<'a>, rows: Vec<Row<'a>>, theme: &Theme) -> Table<'a> {
     let widths = [
         Constraint::Length(COL_WIDTH_ID),
         Constraint::Length(COL_WIDTH_FREQUENCY),
@@ -187,7 +157,7 @@ pub fn create_table<'a>(header: Row<'a>, rows: Vec<Row<'a>>, theme: &TableTheme)
     let block = Block::default()
         .borders(Borders::ALL)
         .title("View Logs")
-        .style(Style::default().bg(theme.normal_row));
+        .style(Style::default().bg(theme.primary_color()).fg(Color::White));
 
     Table::new(rows, widths)
         .header(header)

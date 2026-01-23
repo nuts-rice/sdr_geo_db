@@ -24,9 +24,9 @@ pub mod components;
 pub mod spectrum_client;
 pub mod tabs;
 
-use tabs::view_logs::{create_header, create_table, ViewLogsState};
-use tabs::spectrum_view::{SpectrumViewerState, render_spectrum_view};
 use spectrum_client::SpectrumClient;
+use tabs::spectrum_view::{render_spectrum_view, SpectrumViewerState};
+use tabs::view_logs::{create_header, create_table, ViewLogsState};
 
 use components::geolocate_gridsquare;
 
@@ -34,7 +34,7 @@ const FONT: &str = "Hack Nerd Font";
 
 const AMBER_BRIGHT: Color = Color::Rgb(255, 170, 0); // #FFAA00
 const AMBER_MID: Color = Color::Rgb(170, 102, 0); // #AA6600
-const AMBER_DIM: Color = Color::Rgb(85, 51, 0); // #553300
+const MOAB_RED: Color = Color::Rgb(77, 37, 26); // #c55f42
 
 const CATPPUCIN_YELLOW: Color = Color::Rgb(238, 212, 159); // #EED49F
 const CATPPUCIN_ORANGE: Color = Color::Rgb(245, 153, 160); // #f5a97f
@@ -52,6 +52,27 @@ impl Theme {
         match self {
             Theme::Moab => "Moab",
             Theme::Catppuccin => "Catppuccin",
+        }
+    }
+
+    pub fn primary_color(&self) -> Color {
+        match self {
+            Theme::Moab => AMBER_BRIGHT,
+            Theme::Catppuccin => CATPPUCIN_YELLOW,
+        }
+    }
+
+    pub fn secondary_color(&self) -> Color {
+        match self {
+            Theme::Moab => AMBER_MID,
+            Theme::Catppuccin => CATPPUCIN_ORANGE,
+        }
+    }
+
+    pub fn accent_color(&self) -> Color {
+        match self {
+            Theme::Moab => MOAB_RED,
+            Theme::Catppuccin => CATPPUCIN_BLUE,
         }
     }
 }
@@ -168,7 +189,6 @@ impl App {
             spectrum_client: RefCell::new(None),
             spectrum_view_state: RefCell::new(SpectrumViewerState::default()),
             spectrum_connected: RefCell::new(false),
-
         }
     }
 
@@ -200,7 +220,7 @@ impl App {
             .block(Block::default().borders(Borders::ALL).title("Tabs"))
             .highlight_style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(self.theme.borrow().primary_color())
                     .add_modifier(Modifier::BOLD),
             )
             .divider(Span::raw("|"));
@@ -235,7 +255,7 @@ impl App {
                     .border_type(BorderType::Rounded),
             )
             .alignment(Alignment::Center)
-            .fg(Color::Cyan)
+            .fg(self.theme.borrow().primary_color())
             .add_modifier(Modifier::BOLD);
         frame.render_widget(title, chunks[1]);
 
@@ -248,10 +268,11 @@ impl App {
                 let state = self.spectrum_view_state.borrow();
                 let connected = self.spectrum_connected.borrow();
                 let theme = self.theme.borrow();
-                render_spectrum_view(&state, frame, chunks[2], &theme,  *connected);
+                render_spectrum_view(&state, frame, chunks[2], &theme, *connected);
             }
             ActiveTab::ViewLogs => {
-                self.render_logs_table(frame, chunks[2]);
+                let theme = self.theme.borrow();
+                self.render_logs_table(frame, chunks[2], &theme);
             }
         }
 
@@ -415,38 +436,14 @@ impl App {
         frame.render_widget(list, area);
     }
 
-    fn render_under_construction(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
-        use ratatui::widgets::*;
-
-        let text = vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "🚧 Under Construction 🚧",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from("Spectrum View coming soon!"),
-        ];
-
-        let paragraph = Paragraph::new(text)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Spectrum View"),
-            )
-            .alignment(Alignment::Center);
-
-        frame.render_widget(paragraph, area);
+    fn on_theme_change(&self, new_theme: Theme) {
+        *self.theme.borrow_mut() = new_theme;
     }
 
-    fn render_logs_table(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
+    fn render_logs_table(&self, frame: &mut Frame, area: ratatui::layout::Rect, theme: &Theme) {
         use ratatui::widgets::*;
-        use tabs::view_logs::TableTheme;
 
         let state = self.view_log_state.borrow();
-        let theme = TableTheme::default();
 
         if state.logs.is_empty() {
             let text = vec![
@@ -455,7 +452,7 @@ impl App {
                 Line::from(""),
                 Line::from(Span::styled(
                     "Press 'R' to refresh",
-                    Style::default().fg(Color::Yellow),
+                    Style::default().fg(theme.primary_color()),
                 )),
             ];
             let paragraph = Paragraph::new(text)
