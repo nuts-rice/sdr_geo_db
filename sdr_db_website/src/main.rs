@@ -104,9 +104,10 @@ impl Theme {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ActiveTab {
     NewLog,
-    SpectrumView, //Show as under construction
+    SpectrumView,
     ViewLogs,
 }
 
@@ -320,7 +321,21 @@ impl App {
                 };
                 ("Logs", msg, Color::Cyan)
             }
-            ActiveTab::SpectrumView => ("Info", "🚧 Coming soon...".to_string(), Color::Magenta),
+            ActiveTab::SpectrumView => {
+                let connected = *self.spectrum_connected.borrow();
+                let state = self.spectrum_view_state.borrow();
+                let msg = if connected {
+                    format!(
+                        "● Live | Center: {:.3} MHz | Span: {:.1} MHz",
+                        state.center_frequency / 1_000_000.0,
+                        state.span / 1_000_000.0
+                    )
+                } else {
+                    "○ Connecting to spectrum source...".to_string()
+                };
+                let color = if connected { Color::Green } else { Color::Yellow };
+                ("Spectrum", msg, color)
+            }
         };
         let status = Paragraph::new(status_msg)
             .block(Block::default().borders(Borders::ALL).title(status_title))
@@ -331,7 +346,7 @@ impl App {
         // Help (changes per tab)
         let help_text = match *self.active_tab.borrow() {
             ActiveTab::NewLog => "Tab: Navigate | Up/Down: Mode | Enter: Submit | G: Geolocate | ←/→: Tab | Esc: Clear",
-            ActiveTab::SpectrumView => "←/→: Change Tab | 🚧   Under Construction",
+            ActiveTab::SpectrumView => "←/→: Change Tab | Live spectrum from SDR",
             ActiveTab::ViewLogs => "↑/↓: Scroll | R: Refresh | ←/→: Tab | Enter: Details",
         };
         let help = Line::from(vec![
@@ -594,7 +609,7 @@ impl App {
                 };
             }
             KeyCode::Left | KeyCode::Right => {
-                self.cycle_tabs(key_event.code == KeyCode::Left);
+                app_rc.cycle_tabs(key_event.code == KeyCode::Left);
             }
             KeyCode::Enter => {
                 *self.status_message.borrow_mut() = Some("Submitting...".to_string());
@@ -721,31 +736,69 @@ impl App {
         };
     }
 
-    fn cycle_tabs(&self, reverse: bool) {
-        let mut active_tab = self.active_tab.borrow_mut();
-        *active_tab = match *active_tab {
-            ActiveTab::NewLog => {
-                if reverse {
-                    ActiveTab::ViewLogs
-                } else {
-                    ActiveTab::SpectrumView
+    fn cycle_tabs(self: &Rc<Self>, reverse: bool) {
+        let new_tab = {
+            let active_tab = self.active_tab.borrow();
+            match *active_tab {
+                ActiveTab::NewLog => {
+                    if reverse {
+                        ActiveTab::ViewLogs
+                    } else {
+                        ActiveTab::SpectrumView
+                    }
                 }
-            }
-            ActiveTab::SpectrumView => {
-                if reverse {
-                    ActiveTab::NewLog
-                } else {
-                    ActiveTab::ViewLogs
+                ActiveTab::SpectrumView => {
+                    if reverse {
+                        ActiveTab::NewLog
+                    } else {
+                        ActiveTab::ViewLogs
+                    }
                 }
-            }
-            ActiveTab::ViewLogs => {
-                if reverse {
-                    ActiveTab::SpectrumView
-                } else {
-                    ActiveTab::NewLog
+                ActiveTab::ViewLogs => {
+                    if reverse {
+                        ActiveTab::SpectrumView
+                    } else {
+                        ActiveTab::NewLog
+                    }
                 }
             }
         };
+
+        *self.active_tab.borrow_mut() = new_tab;
+
+        // Connect to spectrum WebSocket when switching to SpectrumView
+        if matches!(new_tab, ActiveTab::SpectrumView) {
+            self.connect_spectrum();
+        }
+    }
+
+    fn connect_spectrum(self: &Rc<Self>) {
+        // Skip if already connected
+        if self.spectrum_client.borrow().is_some() {
+            return;
+        }
+
+        let ws_url = Self::get_spectrum_ws_url();
+        let app = Rc::clone(self);
+
+        let client = SpectrumClient::connect(&ws_url, move |frame| {
+            app.spectrum_view_state.borrow_mut().update_from_frame(frame);
+            *app.spectrum_connected.borrow_mut() = true;
+        });
+
+        *self.spectrum_client.borrow_mut() = Some(client);
+    }
+
+    fn get_spectrum_ws_url() -> String {
+        let window = window().expect("should have a window");
+        let location = window.location();
+        let hostname = location.hostname().unwrap_or_default();
+
+        if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
+            "ws://localhost:3000/spectrum".to_string()
+        } else {
+            "wss://opeth.taila716a3.ts.net/spectrum".to_string()
+        }
     }
 
     async fn submit_form(&self, base_url: &str) {

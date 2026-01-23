@@ -1,8 +1,6 @@
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{js_sys, MessageEvent, WebSocket};
-use yew::Callback;
+use web_sys::{MessageEvent, WebSocket};
 
 use sdr_db::spectrum_types::SpectrumFrame;
 

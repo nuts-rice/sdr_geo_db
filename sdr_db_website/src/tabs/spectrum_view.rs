@@ -2,14 +2,13 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
     prelude::Alignment,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, Paragraph, Widget},
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Paragraph},
     Frame,
 };
 
-use crate::App;
 use crate::Theme;
 use sdr_db::spectrum_types::SpectrumFrame;
 const BUFFER_SIZE: usize = 4096;
