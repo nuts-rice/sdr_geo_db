@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use serde::Serialize;
 
 //Frequency is in MHz
-#[derive(Serialize, serde::Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Serialize, serde::Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 pub enum SignalMode {
     #[default]
     FM,

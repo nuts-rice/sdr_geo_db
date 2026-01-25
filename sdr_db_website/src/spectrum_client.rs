@@ -24,6 +24,10 @@ impl SpectrumClient {
 
         SpectrumClient { ws }
     }
+
+    pub fn drop(self) {
+        self.ws.close().unwrap();
+    }
 }
 /*
 pub fn connect_spectrum(url: &str, on_data: Callback<SpectrumFrame>) {

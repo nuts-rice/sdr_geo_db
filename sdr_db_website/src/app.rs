@@ -24,8 +24,13 @@ use crate::{
     api_client, create_header, create_table, geolocate_gridsquare,
     tabs::spectrum_view::{render_spectrum_view, SpectrumViewerState},
     theme::Theme,
-    ActiveTab, FormField, SpectrumClient, ViewLogsState,
+    ActiveTab, FormField,
+    SignalMode::{AM, CW, FM, LSB, USB},
+    SpectrumClient, ViewLogsState,
 };
+
+const MODES: [SignalMode; 5] = [FM, AM, USB, LSB, CW];
+
 pub struct App {
     base_url: String,
     form_data: RefCell<LogFormData>,
@@ -413,19 +418,8 @@ impl App {
         });
     }
 
-    pub fn get_api_base_url() -> String {
-        let window = window().expect("should have a window");
-        let location = window.location();
-        let hostname = location.hostname().unwrap_or_default();
-
-        if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
-            "http://localhost:3000".to_string()
-        } else {
-            "https://opeth.taila716a3.ts.net".to_string()
-        }
-    }
-
-    pub fn handle_events(&self, key_event: KeyEvent, app_rc: &Rc<Self>) {
+    pub fn handle_events(self: &Rc<Self>, key_event: KeyEvent) {
+        let app_rc = Rc::new(self.clone());
         // Handle theme popup first (modal)
         if *self.theme_popup_visible.borrow() {
             match key_event.code {
@@ -469,7 +463,7 @@ impl App {
             KeyCode::Enter => {
                 *self.status_message.borrow_mut() = Some("Submitting...".to_string());
 
-                let app_rc = Rc::clone(app_rc);
+                let app_rc: Rc<Self> = Rc::clone(&app_rc);
 
                 spawn_local(async move {
                     app_rc.submit_form(&app_rc.base_url).await;
@@ -523,11 +517,6 @@ impl App {
         }
     }
 
-    /*
-        fn handle_active_tab_change(&self, new_tab: ActiveTab) {
-            *self.active_tab.borrow_mut() = new_tab;
-        }
-    */
     fn handle_backspace(&self) {
         let focused = *self.selected_field.borrow();
         match focused {
@@ -552,43 +541,8 @@ impl App {
 
     fn cycle_mode(&self, reverse: bool) {
         let mut form = self.form_data.borrow_mut();
-        form.mode = match form.mode {
-            SignalMode::FM => {
-                if reverse {
-                    SignalMode::CW
-                } else {
-                    SignalMode::AM
-                }
-            }
-            SignalMode::AM => {
-                if reverse {
-                    SignalMode::FM
-                } else {
-                    SignalMode::USB
-                }
-            }
-            SignalMode::USB => {
-                if reverse {
-                    SignalMode::AM
-                } else {
-                    SignalMode::LSB
-                }
-            }
-            SignalMode::LSB => {
-                if reverse {
-                    SignalMode::USB
-                } else {
-                    SignalMode::CW
-                }
-            }
-            SignalMode::CW => {
-                if reverse {
-                    SignalMode::LSB
-                } else {
-                    SignalMode::FM
-                }
-            }
-        };
+        let idx = MODES.iter().position(|&m| m == form.mode).unwrap_or(0);
+        form.mode = MODES[(idx + if reverse { MODES.len() - 1 } else { 1 }) % MODES.len()];
     }
 
     fn cycle_tabs(self: &Rc<Self>, reverse: bool) {
@@ -711,5 +665,17 @@ impl App {
         *self.duration_input.borrow_mut() = String::new();
         *self.form_data.borrow_mut() = LogFormData::default();
         *self.status_message.borrow_mut() = None;
+    }
+}
+
+pub fn get_base_url(protocol: &str) -> String {
+    let window = window().expect("should have a window");
+    let location = window.location();
+    let hostname = location.hostname().unwrap_or_default();
+
+    if hostname.contains("localhost") || hostname.starts_with("127.0.0.1") {
+        format!("{}://localhost:3000", protocol)
+    } else {
+        format!("{}://opeth.taila716a3.ts.net", protocol)
     }
 }

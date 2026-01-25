@@ -26,7 +26,7 @@ pub mod spectrum_client;
 pub mod tabs;
 pub mod theme;
 
-use crate::app::App;
+use crate::app::{get_base_url, App};
 use components::geolocate_gridsquare;
 use spectrum_client::SpectrumClient;
 use tabs::spectrum_view::{render_spectrum_view, SpectrumViewerState};
@@ -89,11 +89,12 @@ impl FormField {
 fn main() -> io::Result<()> {
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
-    let state = Rc::new(App::new(App::get_api_base_url()));
+    //TODO: hook up ws logic to this
+    let state = Rc::new(App::new(get_base_url("http")));
 
     let event_state = Rc::clone(&state);
     terminal.on_key_event(move |key_event| {
-        event_state.handle_events(key_event, &event_state);
+        event_state.handle_events(key_event);
     });
 
     let render_state = Rc::clone(&state);

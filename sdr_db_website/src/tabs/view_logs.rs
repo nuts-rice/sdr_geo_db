@@ -169,8 +169,4 @@ pub fn create_table<'a>(header: Row<'a>, rows: Vec<Row<'a>>, theme: &Theme) -> T
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD))
 }
 
-/*
-pub fn handle_scroll_state(direction: ScrollDirection) {
-    todo!()
-}
-*/
+//pub fn handle_view_logs_events(key: )
