@@ -419,7 +419,7 @@ impl App {
     }
 
     pub fn handle_events(self: &Rc<Self>, key_event: KeyEvent) {
-        let app_rc = Rc::new(self.clone());
+        let app_rc = Rc::clone(self);
         // Handle theme popup first (modal)
         if *self.theme_popup_visible.borrow() {
             match key_event.code {
@@ -462,11 +462,9 @@ impl App {
             }
             KeyCode::Enter => {
                 *self.status_message.borrow_mut() = Some("Submitting...".to_string());
-
-                let app_rc: Rc<Self> = Rc::clone(&app_rc);
-
+                let app = Rc::clone(&app_rc);
                 spawn_local(async move {
-                    app_rc.submit_form(&app_rc.base_url).await;
+                    app.submit_form(&app.base_url).await;
                 });
             }
             KeyCode::Esc => {
@@ -582,12 +580,14 @@ impl App {
     }
 
     fn connect_spectrum(self: &Rc<Self>) {
-        // Skip if already connected
+        use web_sys::console;
+
         if self.spectrum_client.borrow().is_some() {
             return;
         }
 
         let ws_url = Self::get_spectrum_ws_url();
+
         let app = Rc::clone(self);
 
         let client = SpectrumClient::connect(&ws_url, move |frame| {
@@ -598,6 +598,7 @@ impl App {
         });
 
         *self.spectrum_client.borrow_mut() = Some(client);
+        console::log_1(&"[app] SpectrumClient created".into());
     }
 
     fn get_spectrum_ws_url() -> String {

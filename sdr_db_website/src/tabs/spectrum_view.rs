@@ -109,16 +109,13 @@ impl SpectrumViewerState {
     }
 
     fn update_peak_hold(&mut self) {
-        for (freq, dbm) in &self.spectrum_data {
-            match self.peak_hold.iter_mut().find(|(f, _)| f == freq) {
-                Some((_, peak_dbm)) => {
-                    if dbm > peak_dbm {
-                        *peak_dbm = *dbm;
-                    }
-                }
-                None => {
-                    self.peak_hold.push((*freq, *dbm));
-                }
+        if self.peak_hold.len() != self.spectrum_data.len() {
+            self.peak_hold = self.spectrum_data.clone();
+            return;
+        }
+        for (i, &(freq, power)) in self.spectrum_data.iter().enumerate() {
+            if power > self.peak_hold[i].1 {
+                self.peak_hold[i] = (freq, power);
             }
         }
     }

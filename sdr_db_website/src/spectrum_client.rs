@@ -1,6 +1,6 @@
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{MessageEvent, WebSocket};
+use web_sys::{console, ErrorEvent, MessageEvent, WebSocket};
 
 use sdr_db::spectrum_types::SpectrumFrame;
 
@@ -8,21 +8,33 @@ use sdr_db::spectrum_types::SpectrumFrame;
 pub struct SpectrumClient {
     ws: WebSocket,
 }
+
 impl SpectrumClient {
     pub fn connect(url: &str, on_frame: impl Fn(SpectrumFrame) + 'static) -> Self {
-        let ws = WebSocket::new(url).unwrap();
+
+        let ws = WebSocket::new(url).expect("Failed to create WebSocket");
+
+
+
         let onmessage = Closure::wrap(Box::new(move |message_event: MessageEvent| {
             if let Some(text) = message_event.data().as_string() {
-                if let Ok(frame) = serde_json::from_str::<SpectrumFrame>(&text) {
-                    on_frame(frame);
+                match serde_json::from_str::<SpectrumFrame>(&text) {
+                    Ok(frame) => {
+                        on_frame(frame);
+                    }
+                    Err(e) => {
+                        console::error_1(&format!("[spectrum] Parse error: {}", e).into());
+                    }
                 }
+            } else {
+                console::warn_1(&"[spectrum] Non-text message received".into());
             }
         }) as Box<dyn FnMut(MessageEvent)>);
-
         ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
-        onmessage.forget();
 
-        SpectrumClient { ws }
+        SpectrumClient {
+            ws,
+        }
     }
 
     pub fn drop(self) {
