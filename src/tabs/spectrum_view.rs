@@ -203,6 +203,29 @@ impl SpectrumViewerState {
         )
     }
 
+    fn get_device_source(&mut self) -> Option<&mut dyn SpectrumDataSource> {
+        match self.source {
+            SpectrumSource::File => self
+                .csv_source
+                .as_mut()
+                .map(|s| s as &mut dyn SpectrumDataSource),
+            SpectrumSource::HackRF => None,
+        }
+    }
+
+    fn get_device_data(&mut self) -> Option<Vec<(f64, f64)>> {
+        let center_freq = self.center_frequency;
+        let span = self.span;
+        if let Some(device) = self.get_device_source() {
+            match device.get_spectrum_data(center_freq, span) {
+                Ok(data) => Some(data),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+
     /// Generate sample spectrum data for testing with time-varying signals
     /// TODO: Replace with actual SDR data from HackRF or file
     fn generate_sample_data(&mut self) {

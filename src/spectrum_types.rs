@@ -10,8 +10,8 @@ pub struct SpectrumFrame {
 
 pub fn generate_mock_spectrum(time: f64) -> SpectrumFrame {
     let num_points = 1024;
-    let center_freq = 100_000_000.; 
-    let span = 20_000_000.; 
+    let center_freq = 100_000_000.;
+    let span = 20_000_000.;
     let data: Vec<f64> = (0..num_points)
         .map(|i| {
             //Model gaussuian signal + noise

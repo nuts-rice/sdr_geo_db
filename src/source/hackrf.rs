@@ -99,6 +99,8 @@ impl HackRFSource {
     pub fn start_streaming(&mut self) {
         let tx = self.spectrum_tx.clone();
         let device = self.device.clone();
+        let mut planner = rustfft::FftPlanner::<f32>::new();
+        let fft = planner.plan_fft_forward(BUFFER_SIZE);
         tokio::spawn(async move {
             let mut buffer = vec![Complex::default(); BUFFER_SIZE];
             loop {
@@ -112,6 +114,7 @@ impl HackRFSource {
                     .read(&mut [buffer.as_mut_slice()], 1000000)
                     .expect("Failed to read samples");
                 //TODO: FFT and compute spectrum
+                fft.process(&mut buffer);
 
                 let spectrum: Vec<(f64, f64)> = vec![];
                 if tx.send(spectrum).await.is_err() {
@@ -127,7 +130,22 @@ impl HackRFSource {
             .map_err(|e| SourceError::DeviceError(e.to_string()))
     }
 
-    // TODO: figure gain channels?
+    pub fn get_vga_gain(&self) -> Result<usize, SourceError> {
+        let gain = self
+            .device
+            .gain(Direction::Rx, 1)
+            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+        Ok(gain as usize)
+    }
+
+    pub fn get_lna_gain(&self) -> Result<usize, SourceError> {
+        let gain = self
+            .device
+            .gain(Direction::Rx, 2)
+            .map_err(|e| SourceError::DeviceError(e.to_string()))?;
+        Ok(gain as usize)
+    }
+
     pub fn set_vga_gain(&mut self, gain: usize) -> Result<(), SourceError> {
         self.device
             .set_gain(Direction::Rx, 1, gain as f64)
