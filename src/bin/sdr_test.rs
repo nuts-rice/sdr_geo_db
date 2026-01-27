@@ -12,6 +12,7 @@ fn main() {
     println!("Starting SDR test...\n");
 
     let filter = env::args().nth(1).unwrap_or_else(|| "".to_string());
+    let center_freq = env::args().nth(2).and_then(|s| s.parse::<f64>().ok()).unwrap_or(CENTER_FREQ);
     let devices = soapysdr::enumerate(&filter[..]).expect("Failed to enumerate devices");
     let mut planner = FftPlanner::<f32>::new();
     let _fft = planner.plan_fft_forward(BUFFER_SIZE);
@@ -39,11 +40,11 @@ fn main() {
     }
 
     println!("\n=== Configuring Device ===");
-    println!("  Center frequency: {:.2} MHz", CENTER_FREQ / 1e6);
+    println!("  Center frequency: {:.2} MHz", center_freq / 1e6);
     println!("  Sample rate: {:.2} MHz", SAMPLE_RATE / 1e6);
 
     device
-        .set_frequency(Direction::Rx, 0, CENTER_FREQ, ())
+        .set_frequency(Direction::Rx, 0, center_freq, ())
         .expect("Failed to set frequency");
 
     device
@@ -109,7 +110,7 @@ fn main() {
             peak_bin - n / 2
         };
         let freq_offset = (bin_shifted as f64 - n as f64 / 2.0) * SAMPLE_RATE / n as f64;
-        let peak_freq = CENTER_FREQ + freq_offset;
+        let peak_freq = center_freq + freq_offset;
         let peak_db = spectrum[peak_bin];
         println!(
             "  Peak: {:.1} dB @ {:.4} MHz (offset: {:.0} Hz, bin {})",

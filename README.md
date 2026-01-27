@@ -11,6 +11,10 @@ To get the api server running:
 To run the native application:
 `cargo run --bin sdr_db`
 
+To test your plugged in SDR for  receiving spectrum and calculating IQ data:
+` cargo run --bin sdr_test "driver=$YOUR_SDR_DONGLE" $CENTER_FREQUENCY_IN_HERTZ`
+
+
 
 ## Serving
 
