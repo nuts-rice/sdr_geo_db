@@ -265,6 +265,27 @@ impl App {
     fn render_intro_popup(frame: &mut Frame, area: ratatui::layout::Rect) {
         use ratatui::widgets::*;
 
+        // Clear the popup area
+        frame.render_widget(Clear, area);
+
+        // Outer border for the whole popup
+        let outer_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Welcome");
+        let inner_area = outer_block.inner(area);
+        frame.render_widget(outer_block, area);
+
+        // Split inner area into text (top) and demo (bottom)
+        let chunks = Layout::vertical([
+            Constraint::Min(10),   // Text section
+            Constraint::Length(7), // Demo section
+        ])
+        .split(inner_area);
+
+        let text_area = chunks[0];
+        let demo_area = chunks[1];
+
         let text = vec![
             Line::from(""),
             Line::from(Span::styled(
@@ -276,16 +297,29 @@ impl App {
             Line::from(""),
             Line::from("Use the tabs above to navigate between different sections."),
             Line::from("In 'New Log', fill out the form to submit a new SDR contact entry."),
-            Line::from("In 'Spectrum View', tune into live spectrum display. "),
+            Line::from("In 'Spectrum View', tune into live spectrum display."),
             Line::from("In 'View Logs', browse and manage existing log entries."),
             Line::from(""),
             Line::from("Press any key to continue..."),
         ];
 
-        let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title("Intro"))
-            .alignment(Alignment::Center);
+        let text_paragraph = Paragraph::new(text).alignment(Alignment::Center);
+        frame.render_widget(text_paragraph, text_area);
 
+        App::render_intro_popup_demo(frame, demo_area);
+    }
+
+    fn render_intro_popup_demo(frame: &mut Frame, area: ratatui::layout::Rect) {
+        use ratatui::widgets::*;
+        let demo_text = vec![
+            Line::from(""),
+            Line::from("┌───────────────────────────────┐"),
+            Line::from("│        [ Spectrum View ]      │"),
+            Line::from("└───────────────────────────────┘"),
+        ];
+        let paragraph = Paragraph::new(demo_text)
+            .alignment(Alignment::Center)
+            .fg(Color::Cyan);
         frame.render_widget(paragraph, area);
     }
 

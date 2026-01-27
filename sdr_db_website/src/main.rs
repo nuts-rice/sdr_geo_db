@@ -90,7 +90,11 @@ fn main() -> io::Result<()> {
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
     //TODO: hook up ws logic to this
-    let state = Rc::new(App::new(get_base_url("http")));
+    let protocol = web_sys::window()
+        .and_then(|w| w.location().protocol().ok())
+        .map(|p| p.trim_end_matches(':').to_string())
+        .unwrap_or_else(|| "https".to_string());
+    let state = Rc::new(App::new(get_base_url(&protocol)));
 
     let event_state = Rc::clone(&state);
     terminal.on_key_event(move |key_event| {
