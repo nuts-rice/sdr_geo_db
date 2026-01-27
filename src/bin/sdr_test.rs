@@ -1,16 +1,23 @@
 use num_complex::Complex;
+use rustfft::FftPlanner;
 use soapysdr::{Device, Direction};
 use std::env;
 
 const BUFFER_SIZE: usize = 16384;
-const CENTER_FREQ: f64 = 100.0e6;
-const SAMPLE_RATE: f64 = 48000.;
+const CENTER_FREQ: f64 = 162.548e6;
+const SAMPLE_RATE: f64 = 2.0e6;
 
+// ./target/debug/sdr_test "driver=hackrf"
 fn main() {
     println!("Starting SDR test...\n");
 
-    let filter = env::args().nth(1).unwrap_or_default();
+    let filter = env::args().nth(1).unwrap_or_else(|| "".to_string());
     let devices = soapysdr::enumerate(&filter[..]).expect("Failed to enumerate devices");
+    let mut planner = FftPlanner::<f32>::new();
+    let _fft = planner.plan_fft_forward(BUFFER_SIZE);
+    let window: Vec<f32> = (0..BUFFER_SIZE)
+        .map(|n| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * n as f32 / BUFFER_SIZE as f32).cos())
+        .collect();
 
     if devices.is_empty() {
         println!("No SDR devices found with filter: {}", filter);
@@ -72,6 +79,45 @@ fn main() {
         let num_samples = rx_stream
             .read(&mut [&mut buffer[..]], 1_000_000)
             .expect("Failed to read samples");
+        // Remove DC offset (subtract mean)
+        let mean: Complex<f32> =
+            buffer[..num_samples].iter().sum::<Complex<f32>>() / num_samples as f32;
+        for n in 0..num_samples {
+            buffer[n] = buffer[n] - mean;
+        }
+
+        // Apply window
+        for n in 0..num_samples {
+            buffer[n] = buffer[n] * window[n];
+        }
+
+        _fft.process(&mut buffer);
+        let spectrum: Vec<f32> = buffer
+            .iter()
+            .map(|c| 20.0 * (c.re * c.re + c.im * c.im).sqrt().log10())
+            .collect();
+        let n = spectrum.len();
+        let peak_bin = spectrum
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .map(|(i, _)| i)
+            .unwrap();
+        let bin_shifted = if peak_bin < n / 2 {
+            peak_bin + n / 2
+        } else {
+            peak_bin - n / 2
+        };
+        let freq_offset = (bin_shifted as f64 - n as f64 / 2.0) * SAMPLE_RATE / n as f64;
+        let peak_freq = CENTER_FREQ + freq_offset;
+        let peak_db = spectrum[peak_bin];
+        println!(
+            "  Peak: {:.1} dB @ {:.4} MHz (offset: {:.0} Hz, bin {})",
+            peak_db,
+            peak_freq / 1e6,
+            freq_offset,
+            peak_bin
+        );
 
         // Compute statistics
         let magnitudes: Vec<f32> = buffer[..num_samples]
