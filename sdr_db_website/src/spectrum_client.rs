@@ -1,20 +1,18 @@
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{console, ErrorEvent, MessageEvent, WebSocket};
+use web_sys::{console, MessageEvent, WebSocket};
 
 use sdr_db::spectrum_types::SpectrumFrame;
 
-#[derive(Debug)]
 pub struct SpectrumClient {
     ws: WebSocket,
+    // Store closure to prevent it from being dropped
+    _onmessage: Closure<dyn FnMut(MessageEvent)>,
 }
 
 impl SpectrumClient {
     pub fn connect(url: &str, on_frame: impl Fn(SpectrumFrame) + 'static) -> Self {
-
         let ws = WebSocket::new(url).expect("Failed to create WebSocket");
-
-
 
         let onmessage = Closure::wrap(Box::new(move |message_event: MessageEvent| {
             if let Some(text) = message_event.data().as_string() {
@@ -34,6 +32,7 @@ impl SpectrumClient {
 
         SpectrumClient {
             ws,
+            _onmessage: onmessage,
         }
     }
 
