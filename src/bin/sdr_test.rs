@@ -12,7 +12,10 @@ fn main() {
     println!("Starting SDR test...\n");
 
     let filter = env::args().nth(1).unwrap_or_else(|| "".to_string());
-    let center_freq = env::args().nth(2).and_then(|s| s.parse::<f64>().ok()).unwrap_or(CENTER_FREQ);
+    let center_freq = env::args()
+        .nth(2)
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(CENTER_FREQ);
     let devices = soapysdr::enumerate(&filter[..]).expect("Failed to enumerate devices");
     let mut planner = FftPlanner::<f32>::new();
     let _fft = planner.plan_fft_forward(BUFFER_SIZE);

@@ -169,7 +169,11 @@ pub fn render_spectrum_view(
         Span::raw(" - "),
         Span::styled(status, Style::default().fg(status_color)),
     ]))
-    .block(Block::default().borders(Borders::ALL).title("Status"))
+    .block(
+            Block::default()
+                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                .title("Status"),
+        )
     .alignment(Alignment::Center);
     frame.render_widget(header_block, chunks[0]);
 
@@ -188,7 +192,11 @@ pub fn render_spectrum_view(
             .graph_type(GraphType::Line),
     ];
     let chart = Chart::new(datasets)
-        .block(Block::default().borders(Borders::ALL).title("Spectrum"))
+        .block(
+            Block::default()
+                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                .title("Spectrum"),
+        )
         .x_axis(
             Axis::default()
                 .title("Frequency (MHz)")
@@ -214,7 +222,11 @@ pub fn render_spectrum_view(
         state.fps,
     );
     let footer_block = Paragraph::new(footer_text)
-        .block(Block::default().borders(Borders::ALL).title("Info"))
+        .block(
+            Block::default()
+                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                .title("Info"),
+        )
         .alignment(Alignment::Center);
     frame.render_widget(footer_block, chunks[2]);
 }
