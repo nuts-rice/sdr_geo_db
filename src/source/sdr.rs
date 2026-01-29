@@ -26,7 +26,6 @@ impl FromStr for SdrDevice {
     }
 }
 
-/// Spectrum source that provides SpectrumFrame data from SDR or mock
 pub struct SdrSource {
     device: SdrDevice,
     rx: mpsc::Receiver<SpectrumFrame>,
@@ -35,13 +34,11 @@ pub struct SdrSource {
 }
 
 impl SdrSource {
-    /// Create a new spectrum source for the given device type
     pub fn new(device: SdrDevice, config: Option<HackRFConfig>) -> Result<Self, String> {
         let (tx, rx) = mpsc::channel::<SpectrumFrame>(16);
 
         match device {
             SdrDevice::Mock => {
-                // Spawn mock data generator
                 let tx_clone = tx.clone();
                 tokio::spawn(async move {
                     Self::mock_generator(tx_clone).await;
@@ -58,7 +55,7 @@ impl SdrSource {
                 let mut hackrf = HackRFSource::new(hackrf_config)
                     .map_err(|e| format!("Failed to create HackRF source: {}", e))?;
 
-                // Start streaming - this spawns a task that sends to hackrf's internal channel
+                // Start streaming  
                 hackrf.start_streaming(tx.clone());
 
                 Ok(Self {
@@ -86,7 +83,7 @@ impl SdrSource {
         use std::time::Duration;
         use tokio::time::{Instant, interval};
 
-        let mut interval = interval(Duration::from_millis(66)); // ~15 FPS
+        let mut interval = interval(Duration::from_millis(66)); // 15 FPS
         let start = Instant::now();
 
         loop {
