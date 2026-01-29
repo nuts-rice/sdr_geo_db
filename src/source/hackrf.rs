@@ -2,7 +2,8 @@ use num_complex::Complex;
 use soapysdr::{Device, Direction, RxStream};
 use tokio::sync::mpsc;
 
-use crate::source::{IQSource, SourceError};
+use crate::source::{IQSource, SourceError, fft::iq_to_spectrum};
+use crate::spectrum_types::SpectrumFrame;
 
 const BUFFER_SIZE: usize = 262144;
 
@@ -34,8 +35,6 @@ pub struct HackRFSource {
     config: HackRFConfig,
     buffer: Vec<Complex<f32>>,
     rx_stream: Option<RxStream<Complex<f32>>>,
-    spectrum_tx: mpsc::Sender<Vec<(f64, f64)>>,
-    spectrum_rx: mpsc::Receiver<Vec<(f64, f64)>>,
     is_streaming: bool,
 }
 
@@ -90,37 +89,70 @@ impl HackRFSource {
             config,
             buffer: Vec::with_capacity(BUFFER_SIZE),
             rx_stream: None,
-            spectrum_tx: mpsc::channel(1).0,
-            spectrum_rx: mpsc::channel(1).1,
             is_streaming: false,
         })
     }
 
-    pub fn start_streaming(&mut self) {
-        let tx = self.spectrum_tx.clone();
+    /// Start streaming spectrum data to the provided channel
+    pub fn start_streaming(&mut self, tx: mpsc::Sender<SpectrumFrame>) {
         let device = self.device.clone();
         let mut planner = rustfft::FftPlanner::<f32>::new();
         let fft = planner.plan_fft_forward(BUFFER_SIZE);
+        let sample_rate = self.config.sample_rate;
+        let center_frequency = self.config.center_frequency;
+        let bandwidth = self.config.bandwidth;
+
+        self.is_streaming = true;
+
         tokio::spawn(async move {
             let mut buffer = vec![Complex::default(); BUFFER_SIZE];
+
+            // Create stream once outside the loop
+            let mut rx_stream = match device.rx_stream::<Complex<f32>>(&[0]) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Failed to create RX stream: {}", e);
+                    return;
+                }
+            };
+
+            if let Err(e) = rx_stream.activate(None) {
+                eprintln!("Failed to activate RX stream: {}", e);
+                return;
+            }
+
             loop {
-                let mut rx_stream = device
-                    .rx_stream::<Complex<f32>>(&[0])
-                    .expect("Failed to create RX stream");
-                rx_stream
-                    .activate(None)
-                    .expect("Failed to activate RX stream");
-                let _num_samples = rx_stream
-                    .read(&mut [buffer.as_mut_slice()], 1000000)
-                    .expect("Failed to read samples");
-                //TODO: FFT and compute spectrum
+                let _num_samples = match rx_stream.read(&mut [buffer.as_mut_slice()], 1000000) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        eprintln!("Failed to read samples: {}", e);
+                        break;
+                    }
+                };
+
+                // Apply FFT
                 fft.process(&mut buffer);
 
-                let spectrum: Vec<(f64, f64)> = vec![];
-                if tx.send(spectrum).await.is_err() {
-                    break;
+                // Convert to spectrum data (frequency, power) tuples
+                let spectrum_data = iq_to_spectrum(&buffer, sample_rate, center_frequency);
+
+                // Convert to SpectrumFrame
+                let frame = SpectrumFrame {
+                    center_freq: center_frequency as f64,
+                    span: bandwidth as f64,
+                    data: spectrum_data.iter().map(|(_, power)| *power).collect(),
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64,
+                };
+
+                if tx.send(frame).await.is_err() {
+                    break; // Receiver dropped
                 }
             }
+
+            let _ = rx_stream.deactivate(None);
         });
     }
 

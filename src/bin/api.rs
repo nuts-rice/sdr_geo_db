@@ -9,15 +9,19 @@ use axum::{
     routing::{get, post},
 };
 use diesel::prelude::*;
-use diesel::r2d2::{self, ConnectionManager, Pool};
+use diesel::r2d2::{ConnectionManager, Pool};
 use sdr_db::api_types::{ErrorResponse, LogResponse, LogsResponse};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::str::FromStr;
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-use sdr_db::{Log, LogFormData, create_log, get_logs, spectrum_types::generate_mock_spectrum};
+use sdr_db::source::sdr::{SdrDevice, SdrSource};
+use sdr_db::spectrum_types::SpectrumFrame;
+use sdr_db::{Log, LogFormData, create_log, get_logs};
 
 /*
 *#post log : curl -X POST http://localhost:3000/logs -H "Content-Type: application/json" -d '{"frequency": 14.070, "grid_square": "FN31", "callsign": "K1ABC", "mode": "USB", "comment": "Test log entry", "recording_duration": 120.5}'
@@ -31,11 +35,17 @@ struct Config {
     database_url: String,
     port: u16,
     allowed_origins: Vec<String>,
+    sdr_device: SdrDevice,
 }
 
 impl Config {
     fn from_env() -> Result<Self, String> {
         dotenvy::dotenv().ok();
+
+        let sdr_device = std::env::var("SDR_MODE")
+            .ok()
+            .and_then(|s| SdrDevice::from_str(&s).ok())
+            .unwrap_or_default();
 
         Ok(Config {
             database_url: std::env::var("DATABASE_URL").map_err(|_| "DATABASE_URL not set")?,
@@ -48,8 +58,16 @@ impl Config {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
+            sdr_device,
         })
     }
+}
+
+/// Shared application state
+#[derive(Clone)]
+struct AppState {
+    db_pool: DbPool,
+    spectrum_tx: broadcast::Sender<SpectrumFrame>,
 }
 
 #[derive(Serialize)]
@@ -117,11 +135,12 @@ impl IntoResponse for AppError {
 }
 
 async fn create_log_handler(
-    State(pool): State<DbPool>,
+    State(state): State<AppState>,
     Json(form_data): Json<LogFormData>,
 ) -> Result<(StatusCode, Json<LogResponse>), AppError> {
     form_data.validate().map_err(AppError::Validation)?;
 
+    let pool = state.db_pool.clone();
     let log = tokio::task::spawn_blocking(move || -> Result<Log, AppError> {
         let mut conn = pool.get()?;
         let log = create_log(
@@ -143,11 +162,12 @@ async fn create_log_handler(
 }
 
 async fn list_logs_handler(
-    State(pool): State<DbPool>,
+    State(state): State<AppState>,
     Query(params): Query<LogQueryParams>,
 ) -> Result<Json<LogsResponse>, AppError> {
     let limit = params.limit.min(1000);
 
+    let pool = state.db_pool.clone();
     let logs = tokio::task::spawn_blocking(move || -> Result<Vec<Log>, AppError> {
         let mut conn = pool.get()?;
         let mut logs = get_logs(&mut conn, limit)?;
@@ -179,7 +199,8 @@ async fn list_logs_handler(
     }))
 }
 
-async fn health_handler(State(pool): State<DbPool>) -> Result<Json<HealthResponse>, AppError> {
+async fn health_handler(State(state): State<AppState>) -> Result<Json<HealthResponse>, AppError> {
+    let pool = state.db_pool.clone();
     let db_status = tokio::task::spawn_blocking(move || -> Result<String, AppError> {
         let mut conn = pool.get()?;
         diesel::sql_query("SELECT 1").execute(&mut conn)?;
@@ -194,20 +215,27 @@ async fn health_handler(State(pool): State<DbPool>) -> Result<Json<HealthRespons
     }))
 }
 
-async fn spectrum_handler(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(handle_spectrum_ws)
+async fn spectrum_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> Response {
+    let rx = state.spectrum_tx.subscribe();
+    ws.on_upgrade(move |socket| handle_spectrum_ws(socket, rx))
 }
 
-async fn handle_spectrum_ws(mut socket: WebSocket) {
-    let mut interval = tokio::time::interval(Duration::from_millis(66));
-    let start = tokio::time::Instant::now();
+async fn handle_spectrum_ws(mut socket: WebSocket, mut rx: broadcast::Receiver<SpectrumFrame>) {
     loop {
-        interval.tick().await;
-        let elapsed = start.elapsed().as_secs_f64();
-        let frame = generate_mock_spectrum(elapsed);
-        let msg = serde_json::to_string(&frame).unwrap();
-        if socket.send(Message::Text(msg)).await.is_err() {
-            break;
+        match rx.recv().await {
+            Ok(frame) => {
+                let msg = serde_json::to_string(&frame).unwrap();
+                if socket.send(Message::Text(msg)).await.is_err() {
+                    break; // Client disconnected
+                }
+            }
+            Err(broadcast::error::RecvError::Lagged(n)) => {
+                warn!("WebSocket client lagged, skipped {} frames", n);
+                // Continue receiving
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                break; // Channel closed
+            }
         }
     }
 }
@@ -223,12 +251,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
     info!("Starting API server on port {}", config.port);
     info!("Allowed origins: {:?}", config.allowed_origins);
+    info!("SDR mode: {:?}", config.sdr_device);
 
     // Create db pool
     let manager = ConnectionManager::<PgConnection>::new(&config.database_url);
-    let pool = Pool::builder().max_size(10).build(manager)?;
-
+    let db_pool = Pool::builder().max_size(10).build(manager)?;
     info!("Database pool created");
+
+    // Create broadcast channel for spectrum data (buffer 16 frames)
+    let (spectrum_tx, _) = broadcast::channel::<SpectrumFrame>(16);
+
+    // Start SDR source - it will push frames to the broadcast channel
+    let mut sdr_source = SdrSource::new(config.sdr_device.clone(), None)
+        .map_err(|e| format!("Failed to create SDR source: {}", e))?;
+    info!("SDR source created");
+
+    // Spawn task to forward frames from SdrSource to broadcast channel
+    let tx_clone = spectrum_tx.clone();
+    tokio::spawn(async move {
+        while let Some(frame) = sdr_source.recv().await {
+            // Ignore send errors (no subscribers)
+            let _ = tx_clone.send(frame);
+        }
+        warn!("SDR source stopped");
+    });
+
+    let state = AppState {
+        db_pool,
+        spectrum_tx,
+    };
 
     let cors = CorsLayer::new()
         .allow_origin(
@@ -252,7 +303,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(health_handler))
         .route("/spectrum", get(spectrum_handler))
         .layer(cors)
-        .with_state(pool);
+        .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;

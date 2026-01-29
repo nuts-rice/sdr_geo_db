@@ -8,6 +8,7 @@ pub mod stream;
 
 pub mod cache;
 pub mod file;
+pub mod sdr;
 pub mod spectrum;
 #[derive(Debug)]
 pub enum SourceError {
