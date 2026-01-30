@@ -2,7 +2,7 @@ use num_complex::Complex;
 use soapysdr::{Device, Direction, RxStream};
 use tokio::sync::mpsc;
 
-use crate::source::{IQSource, SourceError, fft::iq_to_spectrum};
+use crate::source::{IQSource, SourceError, fft::iq_to_power_db};
 use crate::spectrum_types::SpectrumFrame;
 
 const BUFFER_SIZE: usize = 262144;
@@ -96,28 +96,25 @@ impl HackRFSource {
     /// Start streaming spectrum data to the provided channel
     pub fn start_streaming(&mut self, tx: mpsc::Sender<SpectrumFrame>) {
         let device = self.device.clone();
-        let mut planner = rustfft::FftPlanner::<f32>::new();
-        let fft = planner.plan_fft_forward(BUFFER_SIZE);
-        let sample_rate = self.config.sample_rate;
         let center_frequency = self.config.center_frequency;
         let bandwidth = self.config.bandwidth;
 
         self.is_streaming = true;
 
         tokio::spawn(async move {
+            let mut planner = rustfft::FftPlanner::<f32>::new();
             let mut buffer = vec![Complex::default(); BUFFER_SIZE];
 
-            // Create stream once outside the loop
             let mut rx_stream = match device.rx_stream::<Complex<f32>>(&[0]) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Failed to create RX stream: {}", e);
+                    eprintln!("[hackrf] Failed to create RX stream: {}", e);
                     return;
                 }
             };
 
             if let Err(e) = rx_stream.activate(None) {
-                eprintln!("Failed to activate RX stream: {}", e);
+                eprintln!("[hackrf] Failed to activate RX stream: {}", e);
                 return;
             }
 
@@ -125,22 +122,18 @@ impl HackRFSource {
                 let _num_samples = match rx_stream.read(&mut [buffer.as_mut_slice()], 1000000) {
                     Ok(n) => n,
                     Err(e) => {
-                        eprintln!("Failed to read samples: {}", e);
+                        eprintln!("[hackrf] Failed to read samples: {}", e);
                         break;
                     }
                 };
 
-                // Apply FFT
-                fft.process(&mut buffer);
+                // Full pipeline: DC removal -> window -> FFT -> dB -> shift
+                let power_db = iq_to_power_db(&buffer, &mut planner);
 
-                // Convert to spectrum data (frequency, power) tuples
-                let spectrum_data = iq_to_spectrum(&buffer, sample_rate, center_frequency);
-
-                // Convert to SpectrumFrame
                 let frame = SpectrumFrame {
                     center_freq: center_frequency as f64,
                     span: bandwidth as f64,
-                    data: spectrum_data.iter().map(|(_, power)| *power).collect(),
+                    data: power_db,
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap()
