@@ -4,3 +4,4 @@ Cargo.lock
 .vercel
 .env*.local
 .env
+.local-history
