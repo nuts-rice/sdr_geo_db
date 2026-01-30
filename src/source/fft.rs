@@ -18,7 +18,7 @@ pub fn hann_window(size: usize) -> Vec<f32> {
         .collect()
 }
 
-/// Apply a window function to samples 
+/// Apply a window function to samples
 pub fn apply_window(samples: &mut [Complex<f32>], window: &[f32]) {
     for (sample, &w) in samples.iter_mut().zip(window.iter()) {
         *sample *= w;
@@ -80,10 +80,7 @@ pub fn iq_to_spectrum(
     freqs.into_iter().zip(power_db).collect()
 }
 
-pub fn iq_to_power_db(
-    samples: &[Complex<f32>],
-    planner: &mut FftPlanner<f32>,
-) -> Vec<f64> {
+pub fn iq_to_power_db(samples: &[Complex<f32>], planner: &mut FftPlanner<f32>) -> Vec<f64> {
     let mut buffer = samples.to_vec();
 
     remove_dc_offset(&mut buffer);

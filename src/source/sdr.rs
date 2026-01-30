@@ -55,7 +55,7 @@ impl SdrSource {
                 let mut hackrf = HackRFSource::new(hackrf_config)
                     .map_err(|e| format!("Failed to create HackRF source: {}", e))?;
 
-                // Start streaming  
+                // Start streaming
                 hackrf.start_streaming(tx.clone());
 
                 Ok(Self {
@@ -93,6 +93,12 @@ impl SdrSource {
             if tx.send(frame).await.is_err() {
                 break; // Receiver dropped
             }
+        }
+    }
+
+    pub async fn stop(&mut self) {
+        if let Some(hackrf) = &mut self._hackrf {
+            hackrf.stop_streaming();
         }
     }
 }

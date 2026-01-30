@@ -1,6 +1,6 @@
 use num_complex::Complex;
 use soapysdr::{Device, Direction, RxStream};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::source::{IQSource, SourceError, fft::iq_to_power_db};
 use crate::spectrum_types::SpectrumFrame;
@@ -36,6 +36,7 @@ pub struct HackRFSource {
     buffer: Vec<Complex<f32>>,
     rx_stream: Option<RxStream<Complex<f32>>>,
     is_streaming: bool,
+    stop_tx: Option<oneshot::Sender<()>>,
 }
 
 impl IQSource for HackRFSource {
@@ -90,6 +91,7 @@ impl HackRFSource {
             buffer: Vec::with_capacity(BUFFER_SIZE),
             rx_stream: None,
             is_streaming: false,
+            stop_tx: None,
         })
     }
 
@@ -99,6 +101,8 @@ impl HackRFSource {
         let center_frequency = self.config.center_frequency;
         let bandwidth = self.config.bandwidth;
 
+        let (stop_tx, mut stop_rx) = oneshot::channel::<()>();
+        self.stop_tx = Some(stop_tx);
         self.is_streaming = true;
 
         tokio::spawn(async move {
@@ -119,6 +123,11 @@ impl HackRFSource {
             }
 
             loop {
+                if stop_rx.try_recv().is_ok() {
+                    eprintln!("[hackrf] Stop signal received");
+                    break;
+                }
+
                 let _num_samples = match rx_stream.read(&mut [buffer.as_mut_slice()], 1000000) {
                     Ok(n) => n,
                     Err(e) => {
@@ -146,7 +155,16 @@ impl HackRFSource {
             }
 
             let _ = rx_stream.deactivate(None);
+            eprintln!("[hackrf] Stream stopped");
         });
+    }
+
+    /// https://cybernetist.com/2024/04/19/rust-tokio-task-cancellation-patterns/
+    pub fn stop_streaming(&mut self) {
+        if let Some(stop_tx) = self.stop_tx.take() {
+            let _ = stop_tx.send(());
+        }
+        self.is_streaming = false;
     }
 
     pub fn set_frequency(&mut self, frequency: f32) -> Result<(), SourceError> {
