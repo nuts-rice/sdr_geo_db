@@ -170,10 +170,10 @@ pub fn render_spectrum_view(
         Span::styled(status, Style::default().fg(status_color)),
     ]))
     .block(
-            Block::default()
-                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
-                .title("Status"),
-        )
+        Block::default()
+            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+            .title("Status"),
+    )
     .alignment(Alignment::Center);
     frame.render_widget(header_block, chunks[0]);
 

@@ -1,47 +1,76 @@
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContect, WebGlProgram, WebGlShader ,Position, PositionError};
-use yew::hook;
-use yew_hooks::prelude::*;
+use ratatui::{
+    layout::Alignment,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, Paragraph},
+    Frame,
+};
 
-#[hook]
-pub fn use_webgl_context() -> Option<WebGl2RenderingContext> {
-    let document = web_sys::window()?.document()?;
-    let canvas = document.get_element_by_id("webgl-canvas")?;
-    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into().ok()?;
-    let ctx = canvas.get_context("webgl2").ok()??;
-    let vert_shader = get_vert_shader(&ctx)?;
-    let frag_shader = get_frag_shader(&ctx)?;
-    let program = link_program(&ctx, &vert_shader, &frag_shader)?;
-
-
+fn now_secs() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.performance())
+        .map(|p| p.now() / 1000.0)
+        .unwrap_or(0.0)
 }
 
+/// Renders an animated fake-spectrum demo strip into `area`.
+pub fn render_intro_demo(frame: &mut Frame, area: ratatui::layout::Rect) {
+    let t = now_secs();
 
-pub fn get_vert_shader(ctx: WebGl2RenderingContext) -> Result<WebGlShader, String> {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title("intro demo");
 
-todo!()
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.width < 4 || inner.height < 3 {
+        return;
+    }
+
+    let n = inner.width as usize;
+    let block_chars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+    let spectrum: String = (0..n)
+        .map(|i| {
+            let x = i as f64 / n as f64; // 0.0 .. 1.0
+
+            // Noise floor: low-level ripple
+            let noise = 0.06
+                + 0.04 * (x * 137.0 + t * 0.7).sin().abs()
+                + 0.03 * (x * 89.0 - t * 1.1).sin().abs();
+
+            // Main carrier peak at x = 0.50 (146.520 MHz)
+            let d0 = x - 0.50;
+            let main = 0.85 * (-40.0 * d0 * d0).exp() * (1.0 + 0.05 * (t * 4.0).sin());
+
+            // Weaker signal at x ≈ 0.30
+            let d1 = x - 0.30;
+            let sig1 = 0.38 * (-80.0 * d1 * d1).exp() * (1.0 + 0.08 * (t * 2.5 + 1.0).sin());
+
+            // Another signal at x ≈ 0.70
+            let d2 = x - 0.70;
+            let sig2 = 0.28 * (-100.0 * d2 * d2).exp() * (1.0 + 0.06 * (t * 3.3 - 0.5).sin());
+
+            let v = (noise + main + sig1 + sig2).clamp(0.0, 1.0);
+            block_chars[(v * 7.0) as usize]
+        })
+        .collect();
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(Span::styled(spectrum, Style::default().fg(Color::Green))),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Welcome to SDR_DB! Made by 0x0f Softworks (nuts-rice)",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+    ];
+
+    let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
+    frame.render_widget(paragraph, inner);
 }
-
-
-// Uses inigo quilez's Input - Sound 
-//https://www.shadertoy.com/view/Xds3Rr
-pub fn get_frag_shader(ctx: WebGl2RenderingContext) -> Result<WebGlShader, String> {
-    let frag_shader = compile_shader (
-    &ctx,
-    WebGl2RenderingContext::FRAGMENT_SHADER,
-    r##"#version 300 es
-void main(out vec4 fragColor, in vec2 fragCoord) {
-vec2 uv = fragCoord/iResolution.xy;
-int tx = int(uv.x * 8.0);
-float fft = texelFetch
-
-
-
-
-    "##,)?;
-
-
-
-}
-

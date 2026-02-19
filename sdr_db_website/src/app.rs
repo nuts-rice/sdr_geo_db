@@ -19,6 +19,7 @@ use sdr_db::{LogFormData, SignalMode};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::window;
 
+use crate::components::intro_demo;
 use crate::tabs::view_logs;
 use crate::{
     api_client, create_header, create_table, geolocate_gridsquare,
@@ -306,21 +307,7 @@ impl App {
         let text_paragraph = Paragraph::new(text).alignment(Alignment::Center);
         frame.render_widget(text_paragraph, text_area);
 
-        App::render_intro_popup_demo(frame, demo_area);
-    }
-
-    fn render_intro_popup_demo(frame: &mut Frame, area: ratatui::layout::Rect) {
-        use ratatui::widgets::*;
-        let demo_text = vec![
-            Line::from(""),
-            Line::from("┌───────────────────────────────┐"),
-            Line::from("│        [ Spectrum View ]      │"),
-            Line::from("└───────────────────────────────┘"),
-        ];
-        let paragraph = Paragraph::new(demo_text)
-            .alignment(Alignment::Center)
-            .fg(Color::Cyan);
-        frame.render_widget(paragraph, area);
+        intro_demo::render_intro_demo(frame, demo_area);
     }
 
     fn render_form(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
